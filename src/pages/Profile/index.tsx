@@ -7,7 +7,6 @@ import { useForm } from 'react-hook-form'
 import {
     disablePush,
     enablePushAndGetSubscriptionId,
-    getPushSubscriptionId,
     isOneSignalEnabled,
     isPushOptedIn,
 } from '../../services/onesignal';
