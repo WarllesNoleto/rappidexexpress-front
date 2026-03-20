@@ -11,7 +11,7 @@ import { BaseButton, BaseInput, Container, FormContainer, Logo } from "./styles"
 import { Loader } from '../../components/Loader';
 
 import api from '../../services/api';
-import OneSignal from 'react-onesignal';
+import { getPushSubscriptionId, isOneSignalEnabled, isPushOptedIn } from '../../services/onesignal';
 
 const newLoginFormValidationSchema = zod.object({
     user: zod.string().min(3,'Informe o usuario.'),
@@ -21,10 +21,6 @@ const newLoginFormValidationSchema = zod.object({
 })
 
 type NewLoginFormData = zod.infer<typeof newLoginFormValidationSchema>
-
-const isOneSignalEnabled =
-    import.meta.env.VITE_ENABLE_ONESIGNAL === 'true' &&
-    !['localhost', '127.0.0.1'].includes(window.location.hostname)
 
 export function Login() {
     const { login } = useContext(DeliveryContext)
@@ -43,36 +39,27 @@ export function Login() {
     const { handleSubmit, watch, reset, register } = newLoginFormData
 
     async function runOneSignal(username: string, token: string) {
-        if (!isOneSignalEnabled) {
+    if (!isOneSignalEnabled) {
+        return
+    }
+
+    try {
+        api.defaults.headers.Authorization = `Bearer ${token}`
+
+        const optedIn = await isPushOptedIn()
+        const subscriptionId = await getPushSubscriptionId()
+
+        if (!optedIn || !subscriptionId) {
             return
         }
 
-        try {
-            api.defaults.headers.Authorization = `Bearer ${token}`
-
-            if (
-                OneSignal &&
-                OneSignal.User &&
-                OneSignal.User.PushSubscription &&
-                OneSignal.User.PushSubscription.id
-            ) {
-                await api.put(`/user/${username}/notification-config`, {
-                    notification: { subscriptionId: OneSignal.User.PushSubscription.id }
-                })
-                return
-            }
-
-            await OneSignal.Slidedown.promptPush()
-
-            if (OneSignal.User?.PushSubscription?.id) {
-                await api.put(`/user/${username}/notification-config`, {
-                    notification: { subscriptionId: OneSignal.User.PushSubscription.id }
-                })
-            }
-        } catch (error) {
-            console.log('OneSignal desativado no ambiente local ou não configurado.', error)
-        }
+        await api.put(`/user/${username}/notification-config`, {
+            notification: { subscriptionId }
+        })
+    } catch (error) {
+        console.log('Falha ao sincronizar notificação no login.', error)
     }
+}
 
     async function handleLogin(data: NewLoginFormData) {
         if (loading) {

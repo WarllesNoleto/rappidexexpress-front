@@ -4,7 +4,13 @@ import { useNavigate } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as zod from 'zod'
 import { useForm } from 'react-hook-form'
-import OneSignal from 'react-onesignal';
+import {
+    disablePush,
+    enablePushAndGetSubscriptionId,
+    getPushSubscriptionId,
+    isOneSignalEnabled,
+    isPushOptedIn,
+} from '../../services/onesignal';
 
 import { DeliveryContext } from '../../context/DeliveryContext';
 import api from '../../services/api';
@@ -49,6 +55,7 @@ export function Profile(){
     const [username, setUsername] = useState('')
     const [profileImage, setProfileImage] = useState('')
     const [cityDisplay, setCityDisplay] = useState('')
+    const [isPushEnabled, setIsPushEnabled] = useState(false)
     const [formValues, setFormValues] = useState({
         name: '',
         phone: '',
@@ -56,8 +63,7 @@ export function Profile(){
         profileImage: '',
         location: ''
     })
-    const [cityId, setCityId] = useState('')
-
+    
     const { register } = useForm<ProfileFormData>({
         resolver: zodResolver(ProfileFormValidationSchema),
         values: formValues,
@@ -75,36 +81,81 @@ export function Profile(){
         navigate('/alterar-senha')
     }
 
-    async function handleNotification() {
-        if (loadingNotification) {
-            return
-        }
-
-        if (!isOneSignalEnabled) {
-            alert('As notificações estão desativadas no ambiente local.')
-            return
-        }
-
-        setLoadingNotification(true)
-
-        try {
-            await OneSignal.Slidedown.promptPush()
-
-            if (!OneSignal.User?.PushSubscription?.id) {
-                throw new Error('Não foi possível obter o subscriptionId do OneSignal.')
-            }
-
-            await api.put(`/user/${username}/notification-config`, {
-                notification: { subscriptionId: OneSignal.User.PushSubscription.id }
-            })
-
-            alert('As notificações foram ativadas!')
-        } catch (error: any) {
-            alert(error.response?.data?.message ?? error.message ?? 'Erro ao ativar notificações.')
-        } finally {
-            setLoadingNotification(false)
-        }
+    async function syncPushStatus() {
+    if (!isOneSignalEnabled) {
+        setIsPushEnabled(false)
+        return
     }
+
+    try {
+        const optedIn = await isPushOptedIn()
+        setIsPushEnabled(optedIn)
+    } catch {
+        setIsPushEnabled(false)
+    }
+}
+
+async function handleEnableNotification() {
+    if (loadingNotification) {
+        return
+    }
+
+    if (!isOneSignalEnabled) {
+        alert('As notificações estão desativadas no ambiente local.')
+        return
+    }
+
+    setLoadingNotification(true)
+
+    try {
+        const subscriptionId = await enablePushAndGetSubscriptionId()
+
+        if (!subscriptionId) {
+            throw new Error('Não foi possível obter o subscriptionId do OneSignal.')
+        }
+
+        await api.put(`/user/${username}/notification-config`, {
+            notification: { subscriptionId }
+        })
+
+        setIsPushEnabled(true)
+        alert('As notificações foram ativadas!')
+    } catch (error: any) {
+        alert(error.response?.data?.message ?? error.message ?? 'Erro ao ativar notificações.')
+    } finally {
+        setLoadingNotification(false)
+    }
+}
+
+async function handleDisableNotification() {
+    if (loadingNotification) {
+        return
+    }
+
+    if (!isOneSignalEnabled) {
+        alert('As notificações estão desativadas no ambiente local.')
+        return
+    }
+
+    setLoadingNotification(true)
+
+    try {
+        await disablePush()
+
+        const subscriptionId = await getPushSubscriptionId()
+
+        await api.put(`/user/${username}/notification-config`, {
+            notification: { subscriptionId: subscriptionId ?? '' }
+        })
+
+        setIsPushEnabled(false)
+        alert('As notificações foram desativadas!')
+    } catch (error: any) {
+        alert(error.response?.data?.message ?? error.message ?? 'Erro ao desativar notificações.')
+    } finally {
+        setLoadingNotification(false)
+    }
+}
 
     async function getMyData(){
         try {
@@ -169,6 +220,10 @@ export function Profile(){
 
     useEffect(() => {
         getMyData()
+    }, [])
+
+    useEffect(() => {
+    syncPushStatus()
     }, [])
 
     useEffect(() => {
@@ -248,13 +303,30 @@ export function Profile(){
                         <ContainerButtons>
                             <NotificationButton
                                 type="button"
-                                onClick={handleNotification}
+                                onClick={handleEnableNotification}
                                 backgroundColor={'green-500'}
+                                disabled={loadingNotification || isPushEnabled}
                             >
-                                {loadingNotification ?
-                                    <Loader size={20} biggestColor='gray' smallestColor='gray' /> :
+                                {loadingNotification ? (
+                                    <Loader size={20} biggestColor='gray' smallestColor='gray' />
+                                ) : isPushEnabled ? (
+                                    'Notificações Ativadas'
+                                ) : (
                                     'Ativar Notificações'
-                                }
+                                )}
+                            </NotificationButton>
+
+                            <NotificationButton
+                                type="button"
+                                onClick={handleDisableNotification}
+                                backgroundColor={'red-500'}
+                                disabled={loadingNotification || !isPushEnabled}
+                            >
+                                {loadingNotification ? (
+                                    <Loader size={20} biggestColor='gray' smallestColor='gray' />
+                                ) : (
+                                    'Desativar Notificações'
+                                )}
                             </NotificationButton>
 
                             {(permission === 'admin' || permission === 'superadmin') &&

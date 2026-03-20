@@ -25,12 +25,12 @@
 
   if (!isLocalhost) {
     window.OneSignalDeferred = window.OneSignalDeferred || [];
-    OneSignalDeferred.push(function (OneSignal) {
-      OneSignal.init({
+    window.OneSignalDeferred.push(async function (OneSignal) {
+      await OneSignal.init({
         appId: "2e8b634a-16bc-42a4-98b2-4f3701acf59a",
         safari_web_id: "web.onesignal.auto.3b8b9214-66ac-44d1-a7fb-a9dc856242cb",
         notifyButton: {
-          enable: true,
+          enable: false,
         },
       });
     });
