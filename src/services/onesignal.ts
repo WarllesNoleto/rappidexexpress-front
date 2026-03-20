@@ -58,9 +58,7 @@ export async function enablePushAndGetSubscriptionId(): Promise<string | null> {
     throw new Error('Este navegador não suporta notificações push.');
   }
 
-  if (!OneSignal.Notifications.permission) {
-    await OneSignal.Notifications.requestPermission();
-  }
+  await OneSignal.Notifications.requestPermission();
 
   if (!OneSignal?.User?.PushSubscription?.optedIn) {
     await OneSignal.User.PushSubscription.optIn();
