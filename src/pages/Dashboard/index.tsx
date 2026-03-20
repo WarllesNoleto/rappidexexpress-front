@@ -1,362 +1,451 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useContext, useEffect, useState } from "react";
 import { io } from "socket.io-client";
-import { WhatsappLogo, MapPin } from 'phosphor-react'
+import { WhatsappLogo, MapPin } from "phosphor-react";
 
 import { DeliveryContext } from "../../context/DeliveryContext";
 import api, { SOCKET_URL } from "../../services/api";
-import { Motoboy, Report } from '../../shared/interfaces'
+import { Motoboy, Report } from "../../shared/interfaces";
 
 import {
-    BaseButton,
-    Container,
-    ContainerButtons,
-    ContainerInfo,
-    ContainerDeliveries,
-    ContainerOrder,
-    ContainerShopkeeper,
-    Delivery,
-    Link,
-    ShopkeeperInfo,
-    ShopkeeperProfileImage,
-    OrderActions,
-    OrderButton,
-    SelectContainer,
-    ContainerImagem,
-    ContainerLoading,
-    ContainerStatus,
-    Status,
-    Flag,
+  BaseButton,
+  Container,
+  ContainerButtons,
+  ContainerInfo,
+  ContainerDeliveries,
+  ContainerOrder,
+  ContainerShopkeeper,
+  Delivery,
+  Link,
+  ShopkeeperInfo,
+  ShopkeeperProfileImage,
+  OrderActions,
+  OrderButton,
+  SelectContainer,
+  ContainerImagem,
+  ContainerLoading,
+  ContainerStatus,
+  Status,
+  Flag,
 } from "./styles";
-import { Loader } from '../../components/Loader';
+import { Loader } from "../../components/Loader";
 import { BaseModal } from "../../components/Modal";
 import { StatusDelivery } from "../../shared/constants/enums.constants";
-import { getLinkToWhatsapp, messageTypes } from "../../shared/constants/whatsapp.constants";
+import {
+  getLinkToWhatsapp,
+  messageTypes,
+} from "../../shared/constants/whatsapp.constants";
+
+type DeliveryUpdateData = {
+  status?: string;
+  motoboyId?: string;
+  observation?: string;
+};
 
 export function Dashboard() {
-    const { token, permission } = useContext(DeliveryContext)
+  const { token, permission } = useContext(DeliveryContext);
 
-    const [status, setStatus] = useState(`${StatusDelivery.PENDING}`);
-    const [loading, setLoading] = useState(true);
-    const [reports, setReports] = useState<Report[]>([]);
-    const [motoboys, setMotoboys] = useState<Motoboy[]>([]);
-    const [reportsCount, setReportsCount] = useState(0)
+  const [status, setStatus] = useState<string>(`${StatusDelivery.PENDING}`);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [motoboys, setMotoboys] = useState<Motoboy[]>([]);
+  const [reportsCount, setReportsCount] = useState<number>(0);
 
-    const [selectedMotoboy, setSelectedMotoboy] = useState('')
+  const [selectedMotoboy, setSelectedMotoboy] = useState<string>("");
 
-    const [isVisible, setIsVisible] = useState(false)
-    const [observation, setObservation] = useState('')
-    const [reportSelectedToModal, setReportSelectedToModal] = useState('')
+  const [isVisible, setIsVisible] = useState<boolean>(false);
+  const [observation, setObservation] = useState<string>("");
+  const [reportSelectedToModal, setReportSelectedToModal] = useState<string>("");
 
-    useEffect(() => {
-        api.defaults.headers.Authorization = `Bearer ${token}`
-    }, [token])
+  useEffect(() => {
+    api.defaults.headers.common.Authorization = `Bearer ${token}`;
+  }, [token]);
 
-    function handleModal() {
-        setIsVisible(!isVisible)
+  function handleModal() {
+    setIsVisible((state) => !state);
+  }
+
+  const getData = useCallback(async () => {
+    setLoading(true);
+
+    try {
+      const response = await api.get(`/delivery?status=${status}`);
+      setReports(response.data.data ?? []);
+      setReportsCount(response.data.count ?? 0);
+
+      if (permission !== "shopkeeper") {
+        const motoboysRes = await api.get("/user/motoboys");
+        setMotoboys(motoboysRes.data ?? []);
+      }
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Erro ao carregar pedidos.");
+    } finally {
+      setLoading(false);
+    }
+  }, [status, permission]);
+
+  async function handlerNextStep(report: Report) {
+    let data: DeliveryUpdateData | null = null;
+    let newStatus = "";
+
+    if (
+      report.status === StatusDelivery.COLLECTED &&
+      report.id !== reportSelectedToModal
+    ) {
+      setReportSelectedToModal(report.id);
+      handleModal();
+      return;
     }
 
-    const getData = useCallback(async () => {
-        setLoading(true)
-        setReports([])
+    if (report.status === StatusDelivery.PENDING) {
+      if (!selectedMotoboy) {
+        alert("Selecione o motoboy");
+        return;
+      }
 
-        try {
-            const response = await api.get(`/delivery?status=${status}`)
-            setReports(response.data.data)
-            setReportsCount(response.data.count)
-
-            if (permission !== 'shopkeeper') {
-                const motoboysRes = await api.get('/user/motoboys')
-                setMotoboys(motoboysRes.data)
-            }
-
-            setLoading(false)
-        } catch (error: any) {
-            setLoading(false)
-            alert(error.response?.data?.message || 'Erro ao carregar pedidos.')
-        }
-    }, [status, permission])
-
-    async function handlerNextStep(report: Report) {
-        let data;
-        let newStatus;
-
-        if (report.status === StatusDelivery.COLLECTED && report.id != reportSelectedToModal) {
-            setReportSelectedToModal(report.id)
-            handleModal()
-            return
-        }
-
-        if (report.status === StatusDelivery.PENDING) {
-            if (!selectedMotoboy) {
-                alert('Selecione o motoboy')
-                return
-            }
-
-            newStatus = StatusDelivery.ONCOURSE
-            data = {
-                status: newStatus,
-                motoboyId: selectedMotoboy
-            }
-        } else if (report.status === StatusDelivery.ONCOURSE) {
-            newStatus = StatusDelivery.COLLECTED
-            data = {
-                status: newStatus
-            }
-        } else if (report.status === StatusDelivery.COLLECTED) {
-            newStatus = StatusDelivery.FINISHED
-            data = {
-                status: newStatus,
-                observation: observation === 'Sem observação.' ? '' : observation
-            }
-        }
-
-        try {
-            await api.put(`/delivery/${report.id}`, data)
-            await getData()
-            alert(`Solicitação avançada para o passo ${newStatus}`)
-            setObservation('')
-            setReportSelectedToModal('')
-        } catch (error: any) {
-            alert(error.response?.data?.message || 'Erro ao atualizar pedido.')
-        }
+      newStatus = StatusDelivery.ONCOURSE;
+      data = {
+        status: newStatus,
+        motoboyId: selectedMotoboy,
+      };
+    } else if (report.status === StatusDelivery.ONCOURSE) {
+      newStatus = StatusDelivery.COLLECTED;
+      data = {
+        status: newStatus,
+      };
+    } else if (report.status === StatusDelivery.COLLECTED) {
+      newStatus = StatusDelivery.FINISHED;
+      data = {
+        status: newStatus,
+        observation: observation === "Sem observação." ? "" : observation,
+      };
     }
 
-    async function handlerSave(report: Report) {
-        if (!selectedMotoboy) {
-            alert('Selecione o motoboy')
-            return
-        }
-
-        try {
-            await api.put(`/delivery/${report.id}`, {
-                motoboyId: selectedMotoboy
-            })
-            await getData()
-            alert(`Motoboy foi atualizado com sucesso.`)
-        } catch (error: any) {
-            alert(error.response?.data?.message || 'Erro ao salvar motoboy.')
-        }
+    if (!data || !newStatus) {
+      return;
     }
 
-    async function handlerCancel(report: Report) {
-        const confirmMessage = confirm('Você realmente deseja apagar essa entrega?');
-        if (!confirmMessage) {
-            return
-        }
+    try {
+      await api.put(`/delivery/${report.id}`, data);
+      await getData();
+      alert(`Solicitação avançada para o passo ${newStatus}`);
+      setObservation("");
+      setReportSelectedToModal("");
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Erro ao atualizar pedido.");
+    }
+  }
 
-        try {
-            await api.put(`/delivery/${report.id}`, {
-                status: 'CANCELADO'
-            })
-            await getData()
-            alert(`O pedido foi cancelado com sucesso.`)
-        } catch (error: any) {
-            alert(error.response?.data?.message || 'Erro ao cancelar pedido.')
-        }
+  async function handlerSave(report: Report) {
+    if (!selectedMotoboy) {
+      alert("Selecione o motoboy");
+      return;
     }
 
-    async function handlerDelete(report: Report) {
-        try {
-            await api.delete(`/delivery/${report.id}`)
-            alert('Solicitação apagada com sucesso.')
-            await getData()
-        } catch (error: any) {
-            alert(error.response?.data?.message || 'Erro ao apagar pedido.')
-        }
+    try {
+      await api.put(`/delivery/${report.id}`, {
+        motoboyId: selectedMotoboy,
+      });
+      await getData();
+      alert("Motoboy foi atualizado com sucesso.");
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Erro ao salvar motoboy.");
+    }
+  }
+
+  async function handlerCancel(report: Report) {
+    const confirmMessage = window.confirm(
+      "Você realmente deseja apagar essa entrega?",
+    );
+
+    if (!confirmMessage) {
+      return;
     }
 
-    function getButtonText(status: string, id: string) {
-        if (StatusDelivery.PENDING === status) {
-            return 'Atribuir'
-        } else if (StatusDelivery.ONCOURSE === status) {
-            return 'Coletar'
-        } else if (StatusDelivery.COLLECTED === status) {
-            if (id != reportSelectedToModal) {
-                return 'Observação'
-            }
-            return 'Finalizar'
-        }
+    try {
+      await api.put(`/delivery/${report.id}`, {
+        status: "CANCELADO",
+      });
+      await getData();
+      alert("O pedido foi cancelado com sucesso.");
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Erro ao cancelar pedido.");
+    }
+  }
 
-        return 'Avançar'
+  async function handlerDelete(report: Report) {
+    try {
+      await api.delete(`/delivery/${report.id}`);
+      await getData();
+      alert("Solicitação apagada com sucesso.");
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Erro ao apagar pedido.");
+    }
+  }
+
+  function getButtonText(currentStatus: string, id: string) {
+    if (StatusDelivery.PENDING === currentStatus) {
+      return "Atribuir";
     }
 
-    function formatPhoneNumber(phone: string) {
-        const number = `+55${phone}`
-        const cleaned = ('' + number).replace(/\D/g, '');
-        const match = cleaned.match(/^(\d{2})(\d{2})(\d{4}|\d{5})(\d{4})$/);
-
-        if (match) {
-            return ['(', match[2], ')', match[3], '-', match[4]].join('')
-        }
-        return '';
+    if (StatusDelivery.ONCOURSE === currentStatus) {
+      return "Coletar";
     }
 
-    function getHours(date: string) {
-        return date.split('T')[1].substring(0, 5)
+    if (StatusDelivery.COLLECTED === currentStatus) {
+      if (id !== reportSelectedToModal) {
+        return "Observação";
+      }
+
+      return "Finalizar";
     }
 
-    useEffect(() => {
-        if (motoboys.length === 1) {
-            setSelectedMotoboy(motoboys[0].id)
-        }
-    }, [motoboys])
+    return "Avançar";
+  }
 
-    useEffect(() => {
-        getData()
-    }, [getData])
+  function formatPhoneNumber(phone: string) {
+    const number = `+55${phone}`;
+    const cleaned = String(number).replace(/\D/g, "");
+    const match = cleaned.match(/^(\d{2})(\d{2})(\d{4}|\d{5})(\d{4})$/);
 
-    useEffect(() => {
-        const socket = io(SOCKET_URL, {
-            transports: ['websocket', 'polling'],
-        });
+    if (match) {
+      return ["(", match[2], ")", match[3], "-", match[4]].join("");
+    }
 
-        const reloadDeliveries = () => {
-            getData();
-        };
+    return "";
+  }
 
-        socket.on('delivery:created', reloadDeliveries);
-        socket.on('delivery:updated', reloadDeliveries);
-        socket.on('delivery:deleted', reloadDeliveries);
+  function getHours(date: string) {
+    return date.split("T")[1].substring(0, 5);
+  }
 
-        return () => {
-            socket.off('delivery:created', reloadDeliveries);
-            socket.off('delivery:updated', reloadDeliveries);
-            socket.off('delivery:deleted', reloadDeliveries);
-            socket.disconnect();
-        };
-    }, [getData]);
+  useEffect(() => {
+    if (motoboys.length === 1) {
+      setSelectedMotoboy(motoboys[0].id);
+    }
+  }, [motoboys]);
 
-    return (
-        <Container>
-            <BaseModal isVisible={isVisible} handleClose={handleModal} setObservation={setObservation} />
-            <ContainerButtons>
-                <BaseButton typeReport={status == StatusDelivery.PENDING} onClick={() => setStatus(StatusDelivery.PENDING)}>
-                    Livres
-                    {!loading && status == StatusDelivery.PENDING &&
-                        <Flag>
-                            {reportsCount}
-                        </Flag>
-                    }
-                </BaseButton>
-                <BaseButton typeReport={status != StatusDelivery.PENDING} onClick={() => setStatus(`${StatusDelivery.ONCOURSE},${StatusDelivery.COLLECTED}`)}>
-                    Atribuídos
-                    {!loading && status != StatusDelivery.PENDING &&
-                        <Flag>
-                            {reportsCount}
-                        </Flag>
-                    }
-                </BaseButton>
-            </ContainerButtons>
-            <ContainerDeliveries>
-                {
-                    loading ?
-                        <ContainerLoading>
-                            <Loader size={40} biggestColor="green" smallestColor="gray" />
-                        </ContainerLoading> :
-                        <>
-                            {reports.map((report: Report) =>
-                                <Delivery key={report.id} isfree={report.status === 'PENDENTE'}>
-                                    <ContainerShopkeeper>
-                                        <ContainerImagem>
-                                            <ShopkeeperProfileImage src={report.establishmentImage} />
-                                        </ContainerImagem>
-                                        <ShopkeeperInfo>
-                                            <p>{report.establishmentName}</p>
-                                            <Link href={getLinkToWhatsapp(report.establishmentPhone, messageTypes.motoboy)} target="_blank" rel="noopener noreferrer">
-                                                {formatPhoneNumber(report.establishmentPhone)} <WhatsappLogo size={18} />
-                                            </Link>
-                                            <Link href={report.establishmentLocation} target="_blank" rel="noopener noreferrer">
-                                                <p>Localização</p> <MapPin size={18} />
-                                            </Link>
-                                        </ShopkeeperInfo>
-                                    </ContainerShopkeeper>
+  useEffect(() => {
+    void getData();
+  }, [getData]);
 
-                                    {status != StatusDelivery.PENDING &&
-                                        <ContainerOrder>
-                                            <ContainerStatus>
-                                                <p>Status:</p><Status type={report.status}>{report.status}</Status>
-                                            </ContainerStatus>
-                                            <p>Forma de pagamento: {report.payment}</p>
-                                            <p>Valor: R$ {report.value}</p>
-                                            <p>Pix: {report.establishmentPix}</p>
-                                            <p>Refrigerante: {report.soda}</p>
-                                        </ContainerOrder>
-                                    }
+  useEffect(() => {
+    const socket = io(SOCKET_URL, {
+      transports: ["websocket", "polling"],
+    });
 
-                                    <ContainerInfo>
-                                        <p>Cliente: {report.clientName} </p>
-                                        {status != StatusDelivery.PENDING &&
-                                            <Link href={getLinkToWhatsapp(report.clientPhone, messageTypes.client)} target="_blank" rel="noopener noreferrer">
-                                                {formatPhoneNumber(report.clientPhone)} <WhatsappLogo size={18} />
-                                            </Link>
-                                        }
-                                    </ContainerInfo>
+    const reloadDeliveries = () => {
+      void getData();
+    };
 
-                                    {status != StatusDelivery.PENDING &&
-                                        <ContainerInfo>
-                                            <p>Motoboy: {report.motoboyName} </p>
-                                            <Link href={getLinkToWhatsapp(report.motoboyPhone, messageTypes.establishment)} target="_blank" rel="noopener noreferrer">
-                                                {formatPhoneNumber(report.motoboyPhone)} <WhatsappLogo size={18} />
-                                            </Link>
-                                        </ContainerInfo>
-                                    }
+    socket.on("delivery:created", reloadDeliveries);
+    socket.on("delivery:updated", reloadDeliveries);
+    socket.on("delivery:deleted", reloadDeliveries);
 
-                                    <ContainerInfo>
-                                        {report.createdAt &&
-                                            <p>Criado: {getHours(report.createdAt)}</p>
-                                        }
-                                        {report.onCoursedAt &&
-                                            <p>Atribuído: {getHours(report.onCoursedAt)}</p>
-                                        }
-                                        {report.collectedAt &&
-                                            <p>Coletado: {getHours(report.collectedAt)}</p>
-                                        }
-                                        {report.finishedAt &&
-                                            <p>Finalizado: {getHours(report.finishedAt)}</p>
-                                        }
-                                    </ContainerInfo>
+    const intervalId = window.setInterval(() => {
+      void getData();
+    }, 5000);
 
-                                    {
-                                        permission !== "shopkeeper" &&
-                                        <SelectContainer>
-                                            <label htmlFor="motoboy">Motoboy:</label>
-                                            <select
-                                                value={selectedMotoboy}
-                                                onChange={e => setSelectedMotoboy(e.target.value)}
-                                            >
-                                                <option value="">Selecione o motoboy:</option>
-                                                {
-                                                    motoboys.map((motoboy: Motoboy) =>
-                                                        <option key={motoboy.id} value={motoboy.id}>{motoboy.name}</option>
-                                                    )
-                                                }
-                                            </select>
-                                        </SelectContainer>
-                                    }
+    return () => {
+      window.clearInterval(intervalId);
+      socket.off("delivery:created", reloadDeliveries);
+      socket.off("delivery:updated", reloadDeliveries);
+      socket.off("delivery:deleted", reloadDeliveries);
+      socket.disconnect();
+    };
+  }, [getData]);
 
-                                    <OrderActions>
-                                        {
-                                            (permission === "admin" || permission === "superadmin") && report.status !== "PENDENTE" &&
-                                            <>
-                                                <OrderButton typebutton={true} onClick={() => handlerSave(report)}>Salvar</OrderButton>
-                                                <OrderButton typebutton={false} onClick={() => handlerCancel(report)}>Cancelar</OrderButton>
-                                            </>
-                                        }
-                                        {
-                                            permission !== "shopkeeper" &&
-                                            <OrderButton typebutton={true} onClick={() => handlerNextStep(report)}>{getButtonText(report.status, report.id)}</OrderButton>
-                                        }
-                                        {
-                                            permission !== "motoboy" && report.status === "PENDENTE" &&
-                                            <OrderButton typebutton={false} onClick={() => handlerDelete(report)}>Apagar</OrderButton>
-                                        }
-                                    </OrderActions>
-                                </Delivery>
-                            )}
-                        </>
-                }
-            </ContainerDeliveries>
-        </Container>
-    )
+  return (
+    <Container>
+      <BaseModal
+        isVisible={isVisible}
+        handleClose={handleModal}
+        setObservation={setObservation}
+      />
+
+      <ContainerButtons>
+        <BaseButton
+          typeReport={status === StatusDelivery.PENDING}
+          onClick={() => setStatus(StatusDelivery.PENDING)}
+        >
+          Livres
+          {!loading && status === StatusDelivery.PENDING && (
+            <Flag>{reportsCount}</Flag>
+          )}
+        </BaseButton>
+
+        <BaseButton
+          typeReport={status !== StatusDelivery.PENDING}
+          onClick={() =>
+            setStatus(`${StatusDelivery.ONCOURSE},${StatusDelivery.COLLECTED}`)
+          }
+        >
+          Atribuídos
+          {!loading && status !== StatusDelivery.PENDING && (
+            <Flag>{reportsCount}</Flag>
+          )}
+        </BaseButton>
+      </ContainerButtons>
+
+      <ContainerDeliveries>
+        {loading ? (
+          <ContainerLoading>
+            <Loader size={40} biggestColor="green" smallestColor="gray" />
+          </ContainerLoading>
+        ) : (
+          <>
+            {reports.map((report: Report) => (
+              <Delivery key={report.id} isfree={report.status === "PENDENTE"}>
+                <ContainerShopkeeper>
+                  <ContainerImagem>
+                    <ShopkeeperProfileImage src={report.establishmentImage} />
+                  </ContainerImagem>
+
+                  <ShopkeeperInfo>
+                    <p>{report.establishmentName}</p>
+
+                    <Link
+                      href={getLinkToWhatsapp(
+                        report.establishmentPhone,
+                        messageTypes.motoboy,
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {formatPhoneNumber(report.establishmentPhone)}{" "}
+                      <WhatsappLogo size={18} />
+                    </Link>
+
+                    <Link
+                      href={report.establishmentLocation}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <p>Localização</p> <MapPin size={18} />
+                    </Link>
+                  </ShopkeeperInfo>
+                </ContainerShopkeeper>
+
+                {status !== StatusDelivery.PENDING && (
+                  <ContainerOrder>
+                    <ContainerStatus>
+                      <p>Status:</p>
+                      <Status type={report.status}>{report.status}</Status>
+                    </ContainerStatus>
+                    <p>Forma de pagamento: {report.payment}</p>
+                    <p>Valor: R$ {report.value}</p>
+                    <p>Pix: {report.establishmentPix}</p>
+                    <p>Refrigerante: {report.soda}</p>
+                  </ContainerOrder>
+                )}
+
+                <ContainerInfo>
+                  <p>Cliente: {report.clientName}</p>
+
+                  {status !== StatusDelivery.PENDING && (
+                    <Link
+                      href={getLinkToWhatsapp(
+                        report.clientPhone,
+                        messageTypes.client,
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {formatPhoneNumber(report.clientPhone)}{" "}
+                      <WhatsappLogo size={18} />
+                    </Link>
+                  )}
+                </ContainerInfo>
+
+                {status !== StatusDelivery.PENDING && (
+                  <ContainerInfo>
+                    <p>Motoboy: {report.motoboyName}</p>
+                    <Link
+                      href={getLinkToWhatsapp(
+                        report.motoboyPhone,
+                        messageTypes.establishment,
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {formatPhoneNumber(report.motoboyPhone)}{" "}
+                      <WhatsappLogo size={18} />
+                    </Link>
+                  </ContainerInfo>
+                )}
+
+                <ContainerInfo>
+                  {report.createdAt && <p>Criado: {getHours(report.createdAt)}</p>}
+                  {report.onCoursedAt && (
+                    <p>Atribuído: {getHours(report.onCoursedAt)}</p>
+                  )}
+                  {report.collectedAt && (
+                    <p>Coletado: {getHours(report.collectedAt)}</p>
+                  )}
+                  {report.finishedAt && (
+                    <p>Finalizado: {getHours(report.finishedAt)}</p>
+                  )}
+                </ContainerInfo>
+
+                {permission !== "shopkeeper" && (
+                  <SelectContainer>
+                    <label htmlFor="motoboy">Motoboy:</label>
+                    <select
+                      value={selectedMotoboy}
+                      onChange={(e) => setSelectedMotoboy(e.target.value)}
+                    >
+                      <option value="">Selecione o motoboy:</option>
+                      {motoboys.map((motoboy: Motoboy) => (
+                        <option key={motoboy.id} value={motoboy.id}>
+                          {motoboy.name}
+                        </option>
+                      ))}
+                    </select>
+                  </SelectContainer>
+                )}
+
+                <OrderActions>
+                  {(permission === "admin" || permission === "superadmin") &&
+                    report.status !== "PENDENTE" && (
+                      <>
+                        <OrderButton
+                          typebutton={true}
+                          onClick={() => handlerSave(report)}
+                        >
+                          Salvar
+                        </OrderButton>
+                        <OrderButton
+                          typebutton={false}
+                          onClick={() => handlerCancel(report)}
+                        >
+                          Cancelar
+                        </OrderButton>
+                      </>
+                    )}
+
+                  {permission !== "shopkeeper" && (
+                    <OrderButton
+                      typebutton={true}
+                      onClick={() => handlerNextStep(report)}
+                    >
+                      {getButtonText(report.status, report.id)}
+                    </OrderButton>
+                  )}
+
+                  {permission !== "motoboy" && report.status === "PENDENTE" && (
+                    <OrderButton
+                      typebutton={false}
+                      onClick={() => handlerDelete(report)}
+                    >
+                      Apagar
+                    </OrderButton>
+                  )}
+                </OrderActions>
+              </Delivery>
+            ))}
+          </>
+        )}
+      </ContainerDeliveries>
+    </Container>
+  );
 }
