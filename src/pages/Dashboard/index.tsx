@@ -65,24 +65,31 @@ export function Dashboard() {
     setIsVisible((state) => !state);
   }
 
-  const getData = useCallback(async () => {
-    setLoading(true);
-
-    try {
-      const response = await api.get(`/delivery?status=${status}`);
-      setReports(response.data.data ?? []);
-      setReportsCount(response.data.count ?? 0);
-
-      if (permission !== "shopkeeper") {
-        const motoboysRes = await api.get("/user/motoboys");
-        setMotoboys(motoboysRes.data ?? []);
+  const getData = useCallback(
+    async (showLoader = true) => {
+      if (showLoader) {
+        setLoading(true);
       }
-    } catch (error: any) {
-      alert(error.response?.data?.message || "Erro ao carregar pedidos.");
-    } finally {
-      setLoading(false);
-    }
-  }, [status, permission]);
+
+      try {
+        const response = await api.get(`/delivery?status=${status}`);
+        setReports(response.data.data ?? []);
+        setReportsCount(response.data.count ?? 0);
+
+        if (permission !== "shopkeeper") {
+          const motoboysRes = await api.get("/user/motoboys");
+          setMotoboys(motoboysRes.data ?? []);
+        }
+      } catch (error: any) {
+        alert(error.response?.data?.message || "Erro ao carregar pedidos.");
+      } finally {
+        if (showLoader) {
+          setLoading(false);
+        }
+      }
+    },
+    [status, permission]
+  );
 
   async function handlerNextStep(report: Report) {
     let data: DeliveryUpdateData | null = null;
@@ -127,7 +134,7 @@ export function Dashboard() {
 
     try {
       await api.put(`/delivery/${report.id}`, data);
-      await getData();
+      await getData(false);
       alert(`Solicitação avançada para o passo ${newStatus}`);
       setObservation("");
       setReportSelectedToModal("");
@@ -146,7 +153,7 @@ export function Dashboard() {
       await api.put(`/delivery/${report.id}`, {
         motoboyId: selectedMotoboy,
       });
-      await getData();
+      await getData(false);
       alert("Motoboy foi atualizado com sucesso.");
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao salvar motoboy.");
@@ -166,7 +173,7 @@ export function Dashboard() {
       await api.put(`/delivery/${report.id}`, {
         status: "CANCELADO",
       });
-      await getData();
+      await getData(false);
       alert("O pedido foi cancelado com sucesso.");
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao cancelar pedido.");
@@ -176,7 +183,7 @@ export function Dashboard() {
   async function handlerDelete(report: Report) {
     try {
       await api.delete(`/delivery/${report.id}`);
-      await getData();
+      await getData(false);
       alert("Solicitação apagada com sucesso.");
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao apagar pedido.");
@@ -226,7 +233,7 @@ export function Dashboard() {
   }, [motoboys]);
 
   useEffect(() => {
-    void getData();
+    void getData(true);
   }, [getData]);
 
   useEffect(() => {
@@ -235,19 +242,14 @@ export function Dashboard() {
     });
 
     const reloadDeliveries = () => {
-      void getData();
+      void getData(false);
     };
 
     socket.on("delivery:created", reloadDeliveries);
     socket.on("delivery:updated", reloadDeliveries);
     socket.on("delivery:deleted", reloadDeliveries);
 
-    const intervalId = window.setInterval(() => {
-      void getData();
-    }, 5000);
-
     return () => {
-      window.clearInterval(intervalId);
       socket.off("delivery:created", reloadDeliveries);
       socket.off("delivery:updated", reloadDeliveries);
       socket.off("delivery:deleted", reloadDeliveries);
