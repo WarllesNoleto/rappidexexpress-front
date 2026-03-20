@@ -40,9 +40,6 @@ const ProfileFormValidationSchema = zod.object({
 
 type ProfileFormData = zod.infer<typeof ProfileFormValidationSchema>
 
-const isOneSignalEnabled =
-    import.meta.env.VITE_ENABLE_ONESIGNAL === 'true' &&
-    !['localhost', '127.0.0.1'].includes(window.location.hostname)
 
 export function Profile(){
     const { token, permission } = useContext(DeliveryContext)
@@ -55,6 +52,7 @@ export function Profile(){
     const [username, setUsername] = useState('')
     const [profileImage, setProfileImage] = useState('')
     const [cityDisplay, setCityDisplay] = useState('')
+    const [cityId, setCityId] = useState('')
     const [isPushEnabled, setIsPushEnabled] = useState(false)
     const [formValues, setFormValues] = useState({
         name: '',
@@ -82,80 +80,80 @@ export function Profile(){
     }
 
     async function syncPushStatus() {
-    if (!isOneSignalEnabled) {
-        setIsPushEnabled(false)
-        return
-    }
-
-    try {
-        const optedIn = await isPushOptedIn()
-        setIsPushEnabled(optedIn)
-    } catch {
-        setIsPushEnabled(false)
-    }
-}
-
-async function handleEnableNotification() {
-    if (loadingNotification) {
-        return
-    }
-
-    if (!isOneSignalEnabled) {
-        alert('As notificações estão desativadas no ambiente local.')
-        return
-    }
-
-    setLoadingNotification(true)
-
-    try {
-        const subscriptionId = await enablePushAndGetSubscriptionId()
-
-        if (!subscriptionId) {
-            throw new Error('Não foi possível obter o subscriptionId do OneSignal.')
+        if (!isOneSignalEnabled) {
+            setIsPushEnabled(false)
+            return
         }
 
-        await api.put(`/user/${username}/notification-config`, {
-            notification: { subscriptionId }
-        })
-
-        setIsPushEnabled(true)
-        alert('As notificações foram ativadas!')
-    } catch (error: any) {
-        alert(error.response?.data?.message ?? error.message ?? 'Erro ao ativar notificações.')
-    } finally {
-        setLoadingNotification(false)
-    }
-}
-
-async function handleDisableNotification() {
-    if (loadingNotification) {
-        return
+        try {
+            const optedIn = await isPushOptedIn()
+            setIsPushEnabled(optedIn)
+        } catch {
+            setIsPushEnabled(false)
+        }
     }
 
-    if (!isOneSignalEnabled) {
-        alert('As notificações estão desativadas no ambiente local.')
-        return
+    async function handleEnableNotification() {
+        if (loadingNotification) {
+            return
+        }
+
+        if (!isOneSignalEnabled) {
+            alert('As notificações estão desativadas no ambiente local.')
+            return
+        }
+
+        setLoadingNotification(true)
+
+        try {
+            const subscriptionId = await enablePushAndGetSubscriptionId()
+
+            if (!subscriptionId) {
+                throw new Error('Não foi possível obter o subscriptionId do OneSignal.')
+            }
+
+            await api.put(`/user/${username}/notification-config`, {
+                notification: { subscriptionId }
+            })
+
+            setIsPushEnabled(true)
+            alert('As notificações foram ativadas!')
+        } catch (error: any) {
+            alert(error.response?.data?.message ?? error.message ?? 'Erro ao ativar notificações.')
+        } finally {
+            setLoadingNotification(false)
+        }
     }
 
-    setLoadingNotification(true)
+    async function handleDisableNotification() {
+        if (loadingNotification) {
+            return
+        }
 
-    try {
-        await disablePush()
+        if (!isOneSignalEnabled) {
+            alert('As notificações estão desativadas no ambiente local.')
+            return
+        }
 
-        const subscriptionId = await getPushSubscriptionId()
+        setLoadingNotification(true)
 
-        await api.put(`/user/${username}/notification-config`, {
-            notification: { subscriptionId: subscriptionId ?? '' }
-        })
+        try {
+            await disablePush()
 
-        setIsPushEnabled(false)
-        alert('As notificações foram desativadas!')
-    } catch (error: any) {
-        alert(error.response?.data?.message ?? error.message ?? 'Erro ao desativar notificações.')
-    } finally {
-        setLoadingNotification(false)
+            const subscriptionId = await getPushSubscriptionId()
+
+            await api.put(`/user/${username}/notification-config`, {
+                notification: { subscriptionId: subscriptionId ?? '' }
+            })
+
+            setIsPushEnabled(false)
+            alert('As notificações foram desativadas!')
+        } catch (error: any) {
+            alert(error.response?.data?.message ?? error.message ?? 'Erro ao desativar notificações.')
+        } finally {
+            setLoadingNotification(false)
+        }
     }
-}
 
     async function getMyData(){
         try {
@@ -223,7 +221,7 @@ async function handleDisableNotification() {
     }, [])
 
     useEffect(() => {
-    syncPushStatus()
+        syncPushStatus()
     }, [])
 
     useEffect(() => {
