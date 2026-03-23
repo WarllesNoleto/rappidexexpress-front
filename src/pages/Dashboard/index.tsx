@@ -246,6 +246,20 @@ export function Dashboard() {
     return "";
   }
 
+  function getIfoodOrderNumber(observation?: string) {
+  if (!observation) {
+    return null;
+  }
+
+  const match = observation.match(/Pedido iFood\s*#\s*([^\n\r]+)/i);
+
+  if (!match) {
+    return null;
+  }
+
+  return match[1].trim();
+}
+
   function getHours(date: string) {
     return date.split("T")[1].substring(0, 5);
   }
@@ -366,7 +380,13 @@ export function Dashboard() {
                 )}
 
                 <ContainerInfo>
-                  <p>Cliente: {report.clientName}</p>
+                  <div>
+                    {getIfoodOrderNumber(report.observation) && (
+                      <p>Pedido iFood: {getIfoodOrderNumber(report.observation)}</p>
+                    )}
+
+                    <p>Cliente: {report.clientName}</p>
+                  </div>
 
                   {status !== StatusDelivery.PENDING && (
                     <Link
