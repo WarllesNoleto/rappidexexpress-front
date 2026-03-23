@@ -75,7 +75,7 @@ export function Dashboard() {
       try {
         const response = await api.get(`/delivery?status=${status}`);
         setReports(response.data.data ?? []);
-        setReportsCount(response.data.count ?? 0);
+        setReportsCount(response.data.count ?? []);
 
         if (permission !== "shopkeeper") {
           const motoboysRes = await api.get("/user/motoboys");
@@ -122,35 +122,34 @@ export function Dashboard() {
         status: newStatus,
       };
     } else if (report.status === StatusDelivery.COLLECTED) {
-  newStatus = StatusDelivery.FINISHED;
+      newStatus = StatusDelivery.FINISHED;
 
-  const isIfoodOrder = report.observation?.includes("Pedido iFood #");
+      const isIfoodOrder = report.observation?.includes("Pedido iFood #");
+      let deliveryCode = "";
 
-  let deliveryCode = "";
+      if (isIfoodOrder) {
+        const codeTyped = window.prompt(
+          "Digite o código de entrega do iFood informado pelo cliente:"
+        );
 
-  if (isIfoodOrder) {
-    const codeTyped = window.prompt(
-      "Digite o código de entrega do iFood informado pelo cliente:",
-    );
+        if (codeTyped === null) {
+          return;
+        }
 
-    if (codeTyped === null) {
-      return;
+        deliveryCode = codeTyped.trim();
+
+        if (!deliveryCode) {
+          alert("Informe o código de entrega do iFood.");
+          return;
+        }
+      }
+
+      data = {
+        status: newStatus,
+        observation: observation === "Sem observação." ? "" : observation,
+        deliveryCode,
+      };
     }
-
-    deliveryCode = codeTyped.trim();
-
-    if (!deliveryCode) {
-      alert("Informe o código de entrega do iFood.");
-      return;
-    }
-  }
-
-  data = {
-    status: newStatus,
-    observation: observation === "Sem observação." ? "" : observation,
-    deliveryCode,
-  };
-}
 
     if (!data || !newStatus) {
       return;
@@ -186,7 +185,7 @@ export function Dashboard() {
 
   async function handlerCancel(report: Report) {
     const confirmMessage = window.confirm(
-      "Você realmente deseja apagar essa entrega?",
+      "Você realmente deseja apagar essa entrega?"
     );
 
     if (!confirmMessage) {
@@ -247,18 +246,18 @@ export function Dashboard() {
   }
 
   function getIfoodOrderNumber(observation?: string) {
-  if (!observation) {
-    return null;
+    if (!observation) {
+      return null;
+    }
+
+    const match = observation.match(/Pedido iFood\s*#\s*(\d+)/i);
+
+    if (!match) {
+      return null;
+    }
+
+    return match[1];
   }
-
-  const match = observation.match(/Pedido iFood\s*#\s*([^\n\r]+)/i);
-
-  if (!match) {
-    return null;
-  }
-
-  return match[1].trim();
-}
 
   function getHours(date: string) {
     return date.split("T")[1].substring(0, 5);
@@ -334,161 +333,173 @@ export function Dashboard() {
           </ContainerLoading>
         ) : (
           <>
-            {reports.map((report: Report) => (
-              <Delivery key={report.id} isfree={report.status === "PENDENTE"}>
-                <ContainerShopkeeper>
-                  <ContainerImagem>
-                    <ShopkeeperProfileImage src={report.establishmentImage} />
-                  </ContainerImagem>
+            {reports.map((report: Report) => {
+              const isIfoodOrder =
+                report.observation?.includes("Pedido iFood #") ?? false;
 
-                  <ShopkeeperInfo>
-                    <p>{report.establishmentName}</p>
+              return (
+                <Delivery
+                  key={report.id}
+                  isfree={report.status === StatusDelivery.PENDING}
+                  isIfood={isIfoodOrder}
+                >
+                  <ContainerShopkeeper>
+                    <ContainerImagem>
+                      <ShopkeeperProfileImage src={report.establishmentImage} />
+                    </ContainerImagem>
 
-                    <Link
-                      href={getLinkToWhatsapp(
-                        report.establishmentPhone,
-                        messageTypes.motoboy,
-                      )}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {formatPhoneNumber(report.establishmentPhone)}{" "}
-                      <WhatsappLogo size={18} />
-                    </Link>
+                    <ShopkeeperInfo>
+                      <p>{report.establishmentName}</p>
 
-                    <Link
-                      href={report.establishmentLocation}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <p>Localização</p> <MapPin size={18} />
-                    </Link>
-                  </ShopkeeperInfo>
-                </ContainerShopkeeper>
+                      <Link
+                        href={getLinkToWhatsapp(
+                          report.establishmentPhone,
+                          messageTypes.motoboy
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {formatPhoneNumber(report.establishmentPhone)}{" "}
+                        <WhatsappLogo size={18} />
+                      </Link>
 
-                {status !== StatusDelivery.PENDING && (
-                  <ContainerOrder>
-                    <ContainerStatus>
-                      <p>Status:</p>
-                      <Status type={report.status}>{report.status}</Status>
-                    </ContainerStatus>
-                    <p>Forma de pagamento: {report.payment}</p>
-                    <p>Valor: R$ {report.value}</p>
-                    <p>Pix: {report.establishmentPix}</p>
-                    <p>Refrigerante: {report.soda}</p>
-                  </ContainerOrder>
-                )}
-
-                <ContainerInfo>
-                  <div>
-                    {getIfoodOrderNumber(report.observation) && (
-                      <p>Pedido iFood: {getIfoodOrderNumber(report.observation)}</p>
-                    )}
-
-                    <p>Cliente: {report.clientName}</p>
-                  </div>
+                      <Link
+                        href={report.establishmentLocation}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <p>Localização</p> <MapPin size={18} />
+                      </Link>
+                    </ShopkeeperInfo>
+                  </ContainerShopkeeper>
 
                   {status !== StatusDelivery.PENDING && (
-                    <Link
-                      href={getLinkToWhatsapp(
-                        report.clientPhone,
-                        messageTypes.client,
-                      )}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {formatPhoneNumber(report.clientPhone)}{" "}
-                      <WhatsappLogo size={18} />
-                    </Link>
+                    <ContainerOrder>
+                      <ContainerStatus>
+                        <p>Status:</p>
+                        <Status type={report.status}>{report.status}</Status>
+                      </ContainerStatus>
+                      <p>Forma de pagamento: {report.payment}</p>
+                      <p>Valor: R$ {report.value}</p>
+                      <p>Pix: {report.establishmentPix}</p>
+                      <p>Refrigerante: {report.soda}</p>
+                    </ContainerOrder>
                   )}
-                </ContainerInfo>
 
-                {status !== StatusDelivery.PENDING && (
                   <ContainerInfo>
-                    <p>Motoboy: {report.motoboyName}</p>
-                    <Link
-                      href={getLinkToWhatsapp(
-                        report.motoboyPhone,
-                        messageTypes.establishment,
+                    <div>
+                      {isIfoodOrder && getIfoodOrderNumber(report.observation) && (
+                        <p>
+                          Pedido iFood: {getIfoodOrderNumber(report.observation)}
+                        </p>
                       )}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {formatPhoneNumber(report.motoboyPhone)}{" "}
-                      <WhatsappLogo size={18} />
-                    </Link>
-                  </ContainerInfo>
-                )}
 
-                <ContainerInfo>
-                  {report.createdAt && <p>Criado: {getHours(report.createdAt)}</p>}
-                  {report.onCoursedAt && (
-                    <p>Atribuído: {getHours(report.onCoursedAt)}</p>
-                  )}
-                  {report.collectedAt && (
-                    <p>Coletado: {getHours(report.collectedAt)}</p>
-                  )}
-                  {report.finishedAt && (
-                    <p>Finalizado: {getHours(report.finishedAt)}</p>
-                  )}
-                </ContainerInfo>
+                      <p>Cliente: {report.clientName}</p>
+                    </div>
 
-                {permission !== "shopkeeper" && (
-                  <SelectContainer>
-                    <label htmlFor="motoboy">Motoboy:</label>
-                    <select
-                      value={selectedMotoboy}
-                      onChange={(e) => setSelectedMotoboy(e.target.value)}
-                    >
-                      <option value="">Selecione o motoboy:</option>
-                      {motoboys.map((motoboy: Motoboy) => (
-                        <option key={motoboy.id} value={motoboy.id}>
-                          {motoboy.name}
-                        </option>
-                      ))}
-                    </select>
-                  </SelectContainer>
-                )}
-
-                <OrderActions>
-                  {(permission === "admin" || permission === "superadmin") &&
-                    report.status !== "PENDENTE" && (
-                      <>
-                        <OrderButton
-                          typebutton={true}
-                          onClick={() => handlerSave(report)}
-                        >
-                          Salvar
-                        </OrderButton>
-                        <OrderButton
-                          typebutton={false}
-                          onClick={() => handlerCancel(report)}
-                        >
-                          Cancelar
-                        </OrderButton>
-                      </>
+                    {status !== StatusDelivery.PENDING && (
+                      <Link
+                        href={getLinkToWhatsapp(
+                          report.clientPhone,
+                          messageTypes.client
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {formatPhoneNumber(report.clientPhone)}{" "}
+                        <WhatsappLogo size={18} />
+                      </Link>
                     )}
+                  </ContainerInfo>
+
+                  {status !== StatusDelivery.PENDING && (
+                    <ContainerInfo>
+                      <p>Motoboy: {report.motoboyName}</p>
+                      <Link
+                        href={getLinkToWhatsapp(
+                          report.motoboyPhone,
+                          messageTypes.establishment
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {formatPhoneNumber(report.motoboyPhone)}{" "}
+                        <WhatsappLogo size={18} />
+                      </Link>
+                    </ContainerInfo>
+                  )}
+
+                  <ContainerInfo>
+                    {report.createdAt && <p>Criado: {getHours(report.createdAt)}</p>}
+                    {report.onCoursedAt && (
+                      <p>Atribuído: {getHours(report.onCoursedAt)}</p>
+                    )}
+                    {report.collectedAt && (
+                      <p>Coletado: {getHours(report.collectedAt)}</p>
+                    )}
+                    {report.finishedAt && (
+                      <p>Finalizado: {getHours(report.finishedAt)}</p>
+                    )}
+                  </ContainerInfo>
 
                   {permission !== "shopkeeper" && (
-                    <OrderButton
-                      typebutton={true}
-                      onClick={() => handlerNextStep(report)}
-                    >
-                      {getButtonText(report.status, report.id)}
-                    </OrderButton>
+                    <SelectContainer>
+                      <label htmlFor="motoboy">Motoboy:</label>
+                      <select
+                        value={selectedMotoboy}
+                        onChange={(e) => setSelectedMotoboy(e.target.value)}
+                      >
+                        <option value="">Selecione o motoboy:</option>
+                        {motoboys.map((motoboy: Motoboy) => (
+                          <option key={motoboy.id} value={motoboy.id}>
+                            {motoboy.name}
+                          </option>
+                        ))}
+                      </select>
+                    </SelectContainer>
                   )}
 
-                  {permission !== "motoboy" && report.status === "PENDENTE" && (
-                    <OrderButton
-                      typebutton={false}
-                      onClick={() => handlerDelete(report)}
-                    >
-                      Apagar
-                    </OrderButton>
-                  )}
-                </OrderActions>
-              </Delivery>
-            ))}
+                  <OrderActions>
+                    {(permission === "admin" || permission === "superadmin") &&
+                      report.status !== StatusDelivery.PENDING && (
+                        <>
+                          <OrderButton
+                            typebutton={true}
+                            onClick={() => handlerSave(report)}
+                          >
+                            Salvar
+                          </OrderButton>
+                          <OrderButton
+                            typebutton={false}
+                            onClick={() => handlerCancel(report)}
+                          >
+                            Cancelar
+                          </OrderButton>
+                        </>
+                      )}
+
+                    {permission !== "shopkeeper" && (
+                      <OrderButton
+                        typebutton={true}
+                        onClick={() => handlerNextStep(report)}
+                      >
+                        {getButtonText(report.status, report.id)}
+                      </OrderButton>
+                    )}
+
+                    {permission !== "motoboy" &&
+                      report.status === StatusDelivery.PENDING && (
+                        <OrderButton
+                          typebutton={false}
+                          onClick={() => handlerDelete(report)}
+                        >
+                          Apagar
+                        </OrderButton>
+                      )}
+                  </OrderActions>
+                </Delivery>
+              );
+            })}
           </>
         )}
       </ContainerDeliveries>
