@@ -40,6 +40,7 @@ type DeliveryUpdateData = {
   status?: string;
   motoboyId?: string;
   observation?: string;
+  deliveryCode?: string;
 };
 
 export function Dashboard() {
@@ -121,12 +122,35 @@ export function Dashboard() {
         status: newStatus,
       };
     } else if (report.status === StatusDelivery.COLLECTED) {
-      newStatus = StatusDelivery.FINISHED;
-      data = {
-        status: newStatus,
-        observation: observation === "Sem observação." ? "" : observation,
-      };
+  newStatus = StatusDelivery.FINISHED;
+
+  const isIfoodOrder = report.observation?.includes("Pedido iFood #");
+
+  let deliveryCode = "";
+
+  if (isIfoodOrder) {
+    const codeTyped = window.prompt(
+      "Digite o código de entrega do iFood informado pelo cliente:",
+    );
+
+    if (codeTyped === null) {
+      return;
     }
+
+    deliveryCode = codeTyped.trim();
+
+    if (!deliveryCode) {
+      alert("Informe o código de entrega do iFood.");
+      return;
+    }
+  }
+
+  data = {
+    status: newStatus,
+    observation: observation === "Sem observação." ? "" : observation,
+    deliveryCode,
+  };
+}
 
     if (!data || !newStatus) {
       return;
