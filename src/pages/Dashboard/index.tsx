@@ -5,7 +5,7 @@ import { WhatsappLogo, MapPin } from "phosphor-react";
 
 import { DeliveryContext } from "../../context/DeliveryContext";
 import api, { SOCKET_URL } from "../../services/api";
-import { Motoboy, Report } from "../../shared/interfaces";
+import { City, Motoboy, Report } from "../../shared/interfaces";
 
 import {
   BaseButton,
@@ -49,6 +49,7 @@ export function Dashboard() {
   const [status, setStatus] = useState<string>(`${StatusDelivery.PENDING}`);
   const [loading, setLoading] = useState<boolean>(true);
   const [reports, setReports] = useState<Report[]>([]);
+  const [cities, setCities] = useState<City[]>([]);
   const [motoboys, setMotoboys] = useState<Motoboy[]>([]);
   const [reportsCount, setReportsCount] = useState<number>(0);
 
@@ -91,6 +92,21 @@ export function Dashboard() {
     },
     [status, permission]
   );
+
+  const getCities = useCallback(async () => {
+    try {
+      const response = await api.get("/city");
+      const rawData = Array.isArray(response.data?.data)
+        ? response.data.data
+        : Array.isArray(response.data)
+        ? response.data
+        : [];
+
+      setCities(rawData as City[]);
+    } catch (error) {
+      console.error("Erro ao carregar cidades:", error);
+    }
+  }, []);
 
   async function handlerNextStep(report: Report) {
     let data: DeliveryUpdateData | null = null;
@@ -157,23 +173,23 @@ export function Dashboard() {
 
     try {
       const response = await api.put(`/delivery/${report.id}`, data);
-const updatedReport = response.data;
+      const updatedReport = response.data;
 
-if (
-  newStatus === StatusDelivery.ONCOURSE &&
-  data.motoboyId &&
-  updatedReport?.motoboyId &&
-  updatedReport.motoboyId !== data.motoboyId
-) {
-  await getData(false);
-  alert("Essa entrega já foi atribuída a outro entregador.");
-  return;
-}
+      if (
+        newStatus === StatusDelivery.ONCOURSE &&
+        data.motoboyId &&
+        updatedReport?.motoboyId &&
+        updatedReport.motoboyId !== data.motoboyId
+      ) {
+        await getData(false);
+        alert("Essa entrega já foi atribuída a outro entregador.");
+        return;
+      }
 
-await getData(false);
-alert(`Solicitação avançada para o passo ${newStatus}`);
-setObservation("");
-setReportSelectedToModal("");
+      await getData(false);
+      alert(`Solicitação avançada para o passo ${newStatus}`);
+      setObservation("");
+      setReportSelectedToModal("");
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao atualizar pedido.");
     }
@@ -276,6 +292,20 @@ setReportSelectedToModal("");
     return date.split("T")[1].substring(0, 5);
   }
 
+  function getClientWhatsappMessage(report: Report) {
+    if (!report.establishmentCityId) {
+      return undefined;
+    }
+
+    const city = cities.find(
+      (item) => String(item.id) === String(report.establishmentCityId)
+    );
+
+    const customMessage = city?.clientWhatsappMessage?.trim();
+
+    return customMessage ? customMessage : undefined;
+  }
+
   useEffect(() => {
     if (motoboys.length === 1) {
       setSelectedMotoboy(motoboys[0].id);
@@ -285,6 +315,10 @@ setReportSelectedToModal("");
   useEffect(() => {
     void getData(true);
   }, [getData]);
+
+  useEffect(() => {
+    void getCities();
+  }, [getCities]);
 
   useEffect(() => {
     const socket = io(SOCKET_URL, {
@@ -414,7 +448,8 @@ setReportSelectedToModal("");
                       <Link
                         href={getLinkToWhatsapp(
                           report.clientPhone,
-                          messageTypes.client
+                          messageTypes.client,
+                          getClientWhatsappMessage(report)
                         )}
                         target="_blank"
                         rel="noopener noreferrer"

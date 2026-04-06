@@ -1,8 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { FormEvent, useContext, useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { CheckCircle, Circle } from 'phosphor-react'
-import { useTheme } from 'styled-components'
 
 import { DeliveryContext } from '../../context/DeliveryContext'
 import api from '../../services/api'
@@ -17,15 +15,20 @@ import {
   CityForm,
   CityInput,
   CitySelect,
+  CityTextarea,
+  FormActions,
   SubmitButton,
+  CancelButton,
   CitiesList,
   CityCard,
   CityInfo,
   CityName,
   CityState,
+  CityMessage,
+  CityCardActions,
+  CityActionButton,
   EmptyState,
   LoaderContainer,
-  SelectionIcon,
 } from './styles'
 
 const BRAZILIAN_STATES = [
@@ -67,13 +70,14 @@ function getStateLabel(value?: string) {
 }
 
 export function Cities() {
-  const { token, permission } = useContext(DeliveryContext)
-  const theme = useTheme()
+    const { token, permission } = useContext(DeliveryContext)
   api.defaults.headers.Authorization = `Bearer ${token}`
 
   const [cities, setCities] = useState<City[]>([])
   const [cityName, setCityName] = useState('')
   const [selectedState, setSelectedState] = useState('')
+  const [cityWhatsappMessage, setCityWhatsappMessage] = useState('')
+  const [editingCityId, setEditingCityId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null)
@@ -130,6 +134,21 @@ export function Cities() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [permission])
 
+    function resetForm() {
+    setCityName('')
+    setSelectedState('')
+    setCityWhatsappMessage('')
+    setEditingCityId(null)
+  }
+
+  function handleEditCity(city: City) {
+    setCityName(city.name ?? '')
+    setSelectedState(city.state ?? '')
+    setCityWhatsappMessage(city.clientWhatsappMessage ?? '')
+    setEditingCityId(city.id ? String(city.id) : null)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   async function handleCreateCity(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (isSubmitting) {
@@ -142,15 +161,29 @@ export function Cities() {
       return
     }
 
+    const payload = {
+      name: trimmedName,
+      state: selectedState,
+      clientWhatsappMessage: cityWhatsappMessage.trim(),
+    }
+
     setIsSubmitting(true)
     try {
-      await api.post('/city', { name: trimmedName, state: selectedState })
-      setCityName('')
-      setSelectedState('')
+      if (editingCityId) {
+        await api.put(`/city/${editingCityId}`, payload)
+        alert('Cidade atualizada com sucesso!')
+      } else {
+        await api.post('/city', payload)
+        alert('Cidade cadastrada com sucesso!')
+      }
+
+      resetForm()
       await fetchCities()
-      alert('Cidade cadastrada com sucesso!')
     } catch (error: any) {
-      alert(error.response?.data?.message ?? 'Não foi possível cadastrar a cidade.')
+      alert(
+        error.response?.data?.message ??
+          'Não foi possível salvar a cidade.',
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -213,13 +246,14 @@ export function Cities() {
           <Description>Gerencie as cidades atendidas pela plataforma.</Description>
         </Header>
 
-        <CityForm onSubmit={handleCreateCity}>
+                <CityForm onSubmit={handleCreateCity}>
           <CityInput
             placeholder="Nome da cidade"
             value={cityName}
             onChange={(event) => setCityName(event.target.value)}
             disabled={isSubmitting}
           />
+
           <CitySelect
             value={selectedState}
             onChange={(event) => setSelectedState(event.target.value)}
@@ -232,16 +266,34 @@ export function Cities() {
               </option>
             ))}
           </CitySelect>
-          <SubmitButton
-            type="submit"
-            disabled={isSubmitting || !cityName.trim() || !selectedState}
-          >
-            {isSubmitting ? (
-              <Loader size={24} biggestColor="gray" smallestColor="gray" />
-            ) : (
-              'Cadastrar cidade'
+
+          <CityTextarea
+            placeholder="Mensagem personalizada que o motoboy vai mandar ao cliente dessa cidade"
+            value={cityWhatsappMessage}
+            onChange={(event) => setCityWhatsappMessage(event.target.value)}
+            disabled={isSubmitting}
+          />
+
+          <FormActions>
+            <SubmitButton
+              type="submit"
+              disabled={isSubmitting || !cityName.trim() || !selectedState}
+            >
+              {isSubmitting ? (
+                <Loader size={24} biggestColor="gray" smallestColor="gray" />
+              ) : editingCityId ? (
+                'Salvar alterações'
+              ) : (
+                'Cadastrar cidade'
+              )}
+            </SubmitButton>
+
+            {editingCityId && (
+              <CancelButton type="button" onClick={resetForm} disabled={isSubmitting}>
+                Cancelar edição
+              </CancelButton>
             )}
-          </SubmitButton>
+          </FormActions>
         </CityForm>
 
         {loading || userLoading ? (
@@ -256,33 +308,45 @@ export function Cities() {
               const isUpdating = updatingCityId === cityId
               const isDisabled = userLoading || !cityId || Boolean(updatingCityId)
 
-              return (
+                            return (
                 <CityCard
                   key={city.id ?? city.name}
-                  type="button"
-                  onClick={() => handleSelectCity(city)}
-                  disabled={isDisabled}
                   $isSelected={isSelected}
                 >
                   <CityInfo>
                     <CityName>{city.name}</CityName>
                     <CityState>{getStateLabel(city.state)}</CityState>
+                    <CityMessage>
+                      {city.clientWhatsappMessage?.trim()
+                        ? city.clientWhatsappMessage
+                        : 'Sem mensagem personalizada. Será usada a mensagem padrão do sistema.'}
+                    </CityMessage>
                   </CityInfo>
 
-                  <SelectionIcon>
-                    {isUpdating ? (
-                      <Loader size={24} biggestColor="green" smallestColor="gray" />
-                    ) : isSelected ? (
-                      <CheckCircle
-                        size={24}
-                        weight="fill"
-                        color={theme['green-500']}
-                        aria-label="Cidade selecionada"
-                      />
-                    ) : (
-                      <Circle size={24} color={theme['gray-400']} aria-hidden />
-                    )}
-                  </SelectionIcon>
+                  <CityCardActions>
+                    <CityActionButton
+                      type="button"
+                      onClick={() => handleSelectCity(city)}
+                      disabled={isDisabled}
+                    >
+                      {isUpdating ? (
+                        <Loader size={20} biggestColor="gray" smallestColor="gray" />
+                      ) : isSelected ? (
+                        'Selecionada'
+                      ) : (
+                        'Selecionar'
+                      )}
+                    </CityActionButton>
+
+                    <CityActionButton
+                      type="button"
+                      $variant="secondary"
+                      onClick={() => handleEditCity(city)}
+                      disabled={isSubmitting || Boolean(updatingCityId)}
+                    >
+                      Editar mensagem
+                    </CityActionButton>
+                  </CityCardActions>
                 </CityCard>
               )
             })}

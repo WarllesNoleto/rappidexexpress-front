@@ -9,6 +9,7 @@ export interface Report {
     establishmentPhone: string;
     establishmentLocation: string;
     establishmentPix: string;
+    establishmentCityId?: string;
     id: string;
     isActive: boolean;
     motoboyId: string;
