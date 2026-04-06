@@ -156,11 +156,24 @@ export function Dashboard() {
     }
 
     try {
-      await api.put(`/delivery/${report.id}`, data);
-      await getData(false);
-      alert(`Solicitação avançada para o passo ${newStatus}`);
-      setObservation("");
-      setReportSelectedToModal("");
+      const response = await api.put(`/delivery/${report.id}`, data);
+const updatedReport = response.data;
+
+if (
+  newStatus === StatusDelivery.ONCOURSE &&
+  data.motoboyId &&
+  updatedReport?.motoboyId &&
+  updatedReport.motoboyId !== data.motoboyId
+) {
+  await getData(false);
+  alert("Essa entrega já foi atribuída a outro entregador.");
+  return;
+}
+
+await getData(false);
+alert(`Solicitação avançada para o passo ${newStatus}`);
+setObservation("");
+setReportSelectedToModal("");
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao atualizar pedido.");
     }
