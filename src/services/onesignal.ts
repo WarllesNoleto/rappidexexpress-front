@@ -2,17 +2,41 @@ declare global {
   interface Window {
     OneSignal?: any;
     OneSignalDeferred?: Array<(OneSignal: any) => void>;
+    __ONESIGNAL_STATUS__?: {
+      initialized: boolean;
+      failed: boolean;
+      error: string | null;
+    };
   }
 }
 
 const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
-export const isOneSignalEnabled =
-  import.meta.env.VITE_ENABLE_ONESIGNAL === 'true' && !isLocalhost;
+function isFeatureEnabledByEnv(): boolean {
+  return import.meta.env.VITE_ENABLE_ONESIGNAL === 'true' && !isLocalhost;
+}
+
+export function isOneSignalEnabled(): boolean {
+  if (!isFeatureEnabledByEnv()) {
+    return false;
+  }
+
+  if (window.__ONESIGNAL_STATUS__?.failed) {
+    return false;
+  }
+
+  return true;
+}
 
 async function getOneSignalInstance(): Promise<any> {
-  if (!isOneSignalEnabled) {
+  if (!isFeatureEnabledByEnv()) {
     throw new Error('OneSignal desativado neste ambiente.');
+  }
+
+  if (window.__ONESIGNAL_STATUS__?.failed) {
+    throw new Error(
+      'OneSignal não está liberado para esta URL. Verifique a URL configurada no painel da OneSignal.'
+    );
   }
 
   if (window.OneSignal?.User?.PushSubscription) {
@@ -28,6 +52,16 @@ async function getOneSignalInstance(): Promise<any> {
 
     window.OneSignalDeferred!.push((OneSignal: any) => {
       clearTimeout(timeout);
+
+      if (window.__ONESIGNAL_STATUS__?.failed) {
+        reject(
+          new Error(
+            'OneSignal não está liberado para esta URL. Verifique a URL configurada no painel da OneSignal.'
+          )
+        );
+        return;
+      }
+
       resolve(OneSignal);
     });
   });

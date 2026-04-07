@@ -130,7 +130,7 @@ export function Profile(){
         return
     }
 
-    if (!isOneSignalEnabled) {
+    if (!isOneSignalEnabled()) {
         alert('As notificações estão desativadas no ambiente local.')
         return
     }

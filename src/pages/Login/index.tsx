@@ -39,7 +39,7 @@ export function Login() {
     const { handleSubmit, watch, reset, register } = newLoginFormData
 
     async function runOneSignal(username: string, token: string) {
-    if (!isOneSignalEnabled) {
+    if (!isOneSignalEnabled()) {
         return
     }
 
