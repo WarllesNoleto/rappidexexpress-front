@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { WhatsappLogo, MapPin } from "phosphor-react";
 
@@ -55,6 +55,9 @@ export function Dashboard() {
 
   const [selectedMotoboy, setSelectedMotoboy] = useState<string>("");
 
+  const [currentCityId, setCurrentCityId] = useState<string>("");
+  const reloadTimeoutRef = useRef<number | null>(null);
+
   const [isVisible, setIsVisible] = useState<boolean>(false);
   const [observation, setObservation] = useState<string>("");
   const [reportSelectedToModal, setReportSelectedToModal] = useState<string>("");
@@ -76,12 +79,7 @@ export function Dashboard() {
       try {
         const response = await api.get(`/delivery?status=${status}`);
         setReports(response.data.data ?? []);
-        setReportsCount(response.data.count ?? []);
-
-        if (permission !== "shopkeeper") {
-          const motoboysRes = await api.get("/user/motoboys");
-          setMotoboys(motoboysRes.data ?? []);
-        }
+        setReportsCount(response.data.count ?? 0);
       } catch (error: any) {
         alert(error.response?.data?.message || "Erro ao carregar pedidos.");
       } finally {
@@ -90,7 +88,7 @@ export function Dashboard() {
         }
       }
     },
-    [status, permission]
+    [status]
   );
 
   const getCities = useCallback(async () => {
@@ -105,6 +103,26 @@ export function Dashboard() {
       setCities(rawData as City[]);
     } catch (error) {
       console.error("Erro ao carregar cidades:", error);
+    }
+  }, []);
+
+  const getMotoboys = useCallback(async () => {
+    if (permission === "shopkeeper") return;
+
+    try {
+      const motoboysRes = await api.get("/user/motoboys");
+      setMotoboys(motoboysRes.data ?? []);
+    } catch (error) {
+      console.error("Erro ao carregar motoboys:", error);
+    }
+  }, [permission]);
+
+  const getMyself = useCallback(async () => {
+    try {
+      const response = await api.get("/user/myself");
+      setCurrentCityId(response.data?.cityId ?? "");
+    } catch (error) {
+      console.error("Erro ao carregar usuário atual:", error);
     }
   }, []);
 
@@ -321,25 +339,49 @@ export function Dashboard() {
   }, [getCities]);
 
   useEffect(() => {
+    void getMotoboys();
+  }, [getMotoboys]);
+
+  useEffect(() => {
+    void getMyself();
+  }, [getMyself]);
+
+  useEffect(() => {
+    if (!currentCityId) return;
+
     const socket = io(SOCKET_URL, {
       transports: ["websocket", "polling"],
     });
 
     const reloadDeliveries = () => {
-      void getData(false);
+      if (reloadTimeoutRef.current) {
+        window.clearTimeout(reloadTimeoutRef.current);
+      }
+
+      reloadTimeoutRef.current = window.setTimeout(() => {
+        void getData(false);
+      }, 250);
     };
+
+    socket.on("connect", () => {
+      socket.emit("join-city", currentCityId);
+    });
 
     socket.on("delivery:created", reloadDeliveries);
     socket.on("delivery:updated", reloadDeliveries);
     socket.on("delivery:deleted", reloadDeliveries);
 
     return () => {
+      if (reloadTimeoutRef.current) {
+        window.clearTimeout(reloadTimeoutRef.current);
+      }
+
       socket.off("delivery:created", reloadDeliveries);
       socket.off("delivery:updated", reloadDeliveries);
       socket.off("delivery:deleted", reloadDeliveries);
       socket.disconnect();
     };
-  }, [getData]);
+  }, [currentCityId, getData]);
 
   return (
     <Container>
