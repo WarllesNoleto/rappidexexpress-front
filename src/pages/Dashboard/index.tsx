@@ -71,6 +71,31 @@ export function Dashboard() {
     setIsVisible((state) => !state);
   }
 
+  function getDateValue(date?: string) {
+  if (!date) return 0;
+
+  const parsed = new Date(date).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function sortDashboardReports(list: Report[]) {
+  const statusPriority: Record<string, number> = {
+    [StatusDelivery.ONCOURSE]: 0,
+    [StatusDelivery.COLLECTED]: 1,
+  };
+
+  return [...list].sort((a, b) => {
+    const priorityA = statusPriority[a.status] ?? 99;
+    const priorityB = statusPriority[b.status] ?? 99;
+
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+
+    return getDateValue(a.createdAt) - getDateValue(b.createdAt);
+  });
+}
+
     const getData = useCallback(
       async (showLoader = true) => {
         if (showLoader) {
@@ -79,7 +104,12 @@ export function Dashboard() {
 
         try {
           const response = await api.get(`/delivery?status=${status}`);
-          setReports(response.data.data ?? []);
+
+          const rawReports = Array.isArray(response.data?.data)
+            ? response.data.data
+            : [];
+
+          setReports(sortDashboardReports(rawReports));
         } catch (error: any) {
           alert(error.response?.data?.message || "Erro ao carregar pedidos.");
         } finally {
