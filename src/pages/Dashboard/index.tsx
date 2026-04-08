@@ -420,26 +420,7 @@ export function Dashboard() {
         setObservation={setObservation}
       />
 
-      <ContainerButtons>
-        <BaseButton
-          typeReport={status === StatusDelivery.PENDING}
-          onClick={() => setStatus(StatusDelivery.PENDING)}
-        >
-          Livres
-          <Flag>{pendingCount}</Flag>
-        </BaseButton>
-
-        <BaseButton
-          typeReport={status !== StatusDelivery.PENDING}
-          onClick={() =>
-            setStatus(`${StatusDelivery.ONCOURSE},${StatusDelivery.COLLECTED}`)
-          }
-        >
-          Atribuídos
-          <Flag>{assignedCount}</Flag>
-        </BaseButton>
-
-       <ContainerButtons>
+        <ContainerButtons>
           <BaseButton
             typeReport={status === StatusDelivery.PENDING}
             onClick={() => setStatus(StatusDelivery.PENDING)}
@@ -454,11 +435,10 @@ export function Dashboard() {
               setStatus(`${StatusDelivery.ONCOURSE},${StatusDelivery.COLLECTED}`)
             }
           >
-    Atribuídos
-    <Flag>{assignedCount}</Flag>
-  </BaseButton>
-</ContainerButtons>
-      </ContainerButtons>
+            Atribuídos
+            <Flag>{assignedCount}</Flag>
+          </BaseButton>
+        </ContainerButtons>
 
       <ContainerDeliveries>
         {loading ? (
