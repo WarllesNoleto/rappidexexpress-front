@@ -127,11 +127,14 @@ const refreshDashboard = useCallback(
 
     try {
 <<<<<<< HEAD
+<<<<<<< HEAD
       const [currentResponse, countsResponse] = await Promise.all([
         api.get(`/delivery?status=${status}&itemsPerPage=30`),
         api.get(`/delivery/counts`),
       ]);
 =======
+=======
+>>>>>>> parent of fdb18bf (Update index.tsx)
       const [currentResponse, pendingResponse, assignedResponse] =
         await Promise.all([
           api.get(`/delivery?status=${status}`),
@@ -140,6 +143,9 @@ const refreshDashboard = useCallback(
             `/delivery?status=${StatusDelivery.ONCOURSE},${StatusDelivery.COLLECTED}`
           ),
         ]);
+<<<<<<< HEAD
+>>>>>>> parent of fdb18bf (Update index.tsx)
+=======
 >>>>>>> parent of fdb18bf (Update index.tsx)
 
       if (requestId !== refreshRequestIdRef.current) {
