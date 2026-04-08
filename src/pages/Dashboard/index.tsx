@@ -51,7 +51,8 @@ export function Dashboard() {
   const [reports, setReports] = useState<Report[]>([]);
   const [cities, setCities] = useState<City[]>([]);
   const [motoboys, setMotoboys] = useState<Motoboy[]>([]);
-  const [reportsCount, setReportsCount] = useState<number>(0);
+  const [pendingCount, setPendingCount] = useState<number>(0);
+  const [assignedCount, setAssignedCount] = useState<number>(0);
 
   const [selectedMotoboy, setSelectedMotoboy] = useState<string>("");
 
@@ -70,26 +71,50 @@ export function Dashboard() {
     setIsVisible((state) => !state);
   }
 
-  const getData = useCallback(
-    async (showLoader = true) => {
-      if (showLoader) {
-        setLoading(true);
-      }
-
-      try {
-        const response = await api.get(`/delivery?status=${status}`);
-        setReports(response.data.data ?? []);
-        setReportsCount(response.data.count ?? 0);
-      } catch (error: any) {
-        alert(error.response?.data?.message || "Erro ao carregar pedidos.");
-      } finally {
+    const getData = useCallback(
+      async (showLoader = true) => {
         if (showLoader) {
-          setLoading(false);
+          setLoading(true);
         }
-      }
-    },
-    [status]
-  );
+
+        try {
+          const response = await api.get(`/delivery?status=${status}`);
+          setReports(response.data.data ?? []);
+        } catch (error: any) {
+          alert(error.response?.data?.message || "Erro ao carregar pedidos.");
+        } finally {
+          if (showLoader) {
+            setLoading(false);
+          }
+        }
+      },
+      [status]
+    );
+
+    const getTabCounts = useCallback(async () => {
+  try {
+    const [pendingResponse, assignedResponse] = await Promise.all([
+      api.get(`/delivery?status=${StatusDelivery.PENDING}`),
+      api.get(
+        `/delivery?status=${StatusDelivery.ONCOURSE},${StatusDelivery.COLLECTED}`
+      ),
+    ]);
+
+    setPendingCount(
+      Array.isArray(pendingResponse.data?.data)
+        ? pendingResponse.data.data.length
+        : 0
+    );
+
+    setAssignedCount(
+      Array.isArray(assignedResponse.data?.data)
+        ? assignedResponse.data.data.length
+        : 0
+    );
+  } catch (error) {
+    console.error("Erro ao carregar contadores:", error);
+  }
+}, []);
 
   const getCities = useCallback(async () => {
     try {
@@ -199,12 +224,12 @@ export function Dashboard() {
         updatedReport?.motoboyId &&
         updatedReport.motoboyId !== data.motoboyId
       ) {
-        await getData(false);
+        await Promise.all([getData(false), getTabCounts()]);
         alert("Essa entrega já foi atribuída a outro entregador.");
         return;
       }
 
-      await getData(false);
+      await Promise.all([getData(false), getTabCounts()]);
       alert(`Solicitação avançada para o passo ${newStatus}`);
       setObservation("");
       setReportSelectedToModal("");
@@ -223,7 +248,7 @@ export function Dashboard() {
       await api.put(`/delivery/${report.id}`, {
         motoboyId: selectedMotoboy,
       });
-      await getData(false);
+      await Promise.all([getData(false), getTabCounts()]);
       alert("Motoboy foi atualizado com sucesso.");
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao salvar motoboy.");
@@ -243,7 +268,7 @@ export function Dashboard() {
       await api.put(`/delivery/${report.id}`, {
         status: "CANCELADO",
       });
-      await getData(false);
+      await Promise.all([getData(false), getTabCounts()]);
       alert("O pedido foi cancelado com sucesso.");
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao cancelar pedido.");
@@ -253,7 +278,7 @@ export function Dashboard() {
   async function handlerDelete(report: Report) {
     try {
       await api.delete(`/delivery/${report.id}`);
-      await getData(false);
+      await Promise.all([getData(false), getTabCounts()]);
       alert("Solicitação apagada com sucesso.");
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao apagar pedido.");
@@ -325,6 +350,10 @@ export function Dashboard() {
   }
 
   useEffect(() => {
+  void getTabCounts();
+}, [getTabCounts]);
+
+  useEffect(() => {
     if (motoboys.length === 1) {
       setSelectedMotoboy(motoboys[0].id);
     }
@@ -359,7 +388,7 @@ export function Dashboard() {
       }
 
       reloadTimeoutRef.current = window.setTimeout(() => {
-        void getData(false);
+        void Promise.all([getData(false), getTabCounts()]);
       }, 250);
     };
 
@@ -397,9 +426,17 @@ export function Dashboard() {
           onClick={() => setStatus(StatusDelivery.PENDING)}
         >
           Livres
-          {!loading && status === StatusDelivery.PENDING && (
-            <Flag>{reportsCount}</Flag>
-          )}
+          <Flag>{pendingCount}</Flag>
+        </BaseButton>
+
+        <BaseButton
+          typeReport={status !== StatusDelivery.PENDING}
+          onClick={() =>
+            setStatus(`${StatusDelivery.ONCOURSE},${StatusDelivery.COLLECTED}`)
+          }
+        >
+          Atribuídos
+          <Flag>{assignedCount}</Flag>
         </BaseButton>
 
         <BaseButton
