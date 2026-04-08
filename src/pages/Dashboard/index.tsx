@@ -58,6 +58,7 @@ export function Dashboard() {
 
   const [currentCityId, setCurrentCityId] = useState<string>("");
   const reloadTimeoutRef = useRef<number | null>(null);
+  const refreshRequestIdRef = useRef(0);
 
   const [isVisible, setIsVisible] = useState<boolean>(false);
   const [observation, setObservation] = useState<string>("");
@@ -104,55 +105,61 @@ function sortDashboardReports(list: Report[]) {
   });
 }
 
-    const getData = useCallback(
-      async (showLoader = true) => {
-        if (showLoader) {
-          setLoading(true);
-        }
-
-        try {
-          const response = await api.get(`/delivery?status=${status}`);
-
-          const rawReports = Array.isArray(response.data?.data)
-            ? response.data.data
-            : [];
-
-          setReports(sortDashboardReports(rawReports));
-        } catch (error: any) {
-          alert(error.response?.data?.message || "Erro ao carregar pedidos.");
-        } finally {
-          if (showLoader) {
-            setLoading(false);
-          }
-        }
-      },
-      [status]
-    );
-
-    const getTabCounts = useCallback(async () => {
-  try {
-    const [pendingResponse, assignedResponse] = await Promise.all([
-      api.get(`/delivery?status=${StatusDelivery.PENDING}`),
-      api.get(
-        `/delivery?status=${StatusDelivery.ONCOURSE},${StatusDelivery.COLLECTED}`
-      ),
-    ]);
-
-    setPendingCount(
-      Array.isArray(pendingResponse.data?.data)
-        ? pendingResponse.data.data.length
-        : 0
-    );
-
-    setAssignedCount(
-      Array.isArray(assignedResponse.data?.data)
-        ? assignedResponse.data.data.length
-        : 0
-    );
-  } catch (error) {
-    console.error("Erro ao carregar contadores:", error);
+    function getResponseCount(response: any) {
+  if (typeof response?.data?.count === "number") {
+    return response.data.count;
   }
-}, []);
+
+  if (Array.isArray(response?.data?.data)) {
+    return response.data.data.length;
+  }
+
+  return 0;
+}
+
+const refreshDashboard = useCallback(
+  async (showLoader = true) => {
+    const requestId = ++refreshRequestIdRef.current;
+
+    if (showLoader) {
+      setLoading(true);
+    }
+
+    try {
+      const [currentResponse, pendingResponse, assignedResponse] =
+        await Promise.all([
+          api.get(`/delivery?status=${status}`),
+          api.get(`/delivery?status=${StatusDelivery.PENDING}`),
+          api.get(
+            `/delivery?status=${StatusDelivery.ONCOURSE},${StatusDelivery.COLLECTED}`
+          ),
+        ]);
+
+      if (requestId !== refreshRequestIdRef.current) {
+        return;
+      }
+
+      const rawReports = Array.isArray(currentResponse.data?.data)
+        ? currentResponse.data.data
+        : [];
+
+      setReports(sortDashboardReports(rawReports));
+      setPendingCount(getResponseCount(pendingResponse));
+      setAssignedCount(getResponseCount(assignedResponse));
+    } catch (error: any) {
+      if (requestId !== refreshRequestIdRef.current) {
+        return;
+      }
+
+      alert(error.response?.data?.message || "Erro ao carregar pedidos.");
+    } finally {
+      if (showLoader && requestId === refreshRequestIdRef.current) {
+        setLoading(false);
+      }
+    }
+  },
+  [status]
+);
 
   const getCities = useCallback(async () => {
     try {
@@ -262,12 +269,12 @@ function sortDashboardReports(list: Report[]) {
         updatedReport?.motoboyId &&
         updatedReport.motoboyId !== data.motoboyId
       ) {
-        await Promise.all([getData(false), getTabCounts()]);
+        await refreshDashboard(false);
         alert("Essa entrega já foi atribuída a outro entregador.");
         return;
       }
 
-      await Promise.all([getData(false), getTabCounts()]);
+      await refreshDashboard(false);
       alert(`Solicitação avançada para o passo ${newStatus}`);
       setObservation("");
       setReportSelectedToModal("");
@@ -286,7 +293,7 @@ function sortDashboardReports(list: Report[]) {
       await api.put(`/delivery/${report.id}`, {
         motoboyId: selectedMotoboy,
       });
-      await Promise.all([getData(false), getTabCounts()]);
+      await refreshDashboard(false);
       alert("Motoboy foi atualizado com sucesso.");
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao salvar motoboy.");
@@ -306,7 +313,7 @@ function sortDashboardReports(list: Report[]) {
       await api.put(`/delivery/${report.id}`, {
         status: "CANCELADO",
       });
-      await Promise.all([getData(false), getTabCounts()]);
+      await refreshDashboard(false);
       alert("O pedido foi cancelado com sucesso.");
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao cancelar pedido.");
@@ -316,7 +323,7 @@ function sortDashboardReports(list: Report[]) {
   async function handlerDelete(report: Report) {
     try {
       await api.delete(`/delivery/${report.id}`);
-      await Promise.all([getData(false), getTabCounts()]);
+      await refreshDashboard(false);
       alert("Solicitação apagada com sucesso.");
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao apagar pedido.");
@@ -388,18 +395,14 @@ function sortDashboardReports(list: Report[]) {
   }
 
   useEffect(() => {
-  void getTabCounts();
-}, [getTabCounts]);
+    void refreshDashboard(true);
+  }, [refreshDashboard]);
 
   useEffect(() => {
     if (motoboys.length === 1) {
       setSelectedMotoboy(motoboys[0].id);
     }
   }, [motoboys]);
-
-  useEffect(() => {
-    void getData(true);
-  }, [getData]);
 
   useEffect(() => {
     void getCities();
@@ -426,7 +429,7 @@ function sortDashboardReports(list: Report[]) {
       }
 
       reloadTimeoutRef.current = window.setTimeout(() => {
-        void Promise.all([getData(false), getTabCounts()]);
+        void refreshDashboard(false);
       }, 250);
     };
 
@@ -448,7 +451,7 @@ function sortDashboardReports(list: Report[]) {
       socket.off("delivery:deleted", reloadDeliveries);
       socket.disconnect();
     };
-  }, [currentCityId, getData]);
+  }, [currentCityId, refreshDashboard]);
 
   return (
     <Container>
