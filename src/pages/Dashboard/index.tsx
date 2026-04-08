@@ -30,7 +30,7 @@ import {
 } from "./styles";
 import { Loader } from "../../components/Loader";
 import { BaseModal } from "../../components/Modal";
-import { StatusDelivery } from "../../shared/constants/enums.constants";
+import { StatusDelivery, UserType } from "../../shared/constants/enums.constants";
 import {
   getLinkToWhatsapp,
   messageTypes,
@@ -80,12 +80,20 @@ export function Dashboard() {
 }
 
 function sortDashboardReports(list: Report[]) {
+  const sortedByCreatedAt = [...list].sort(
+    (a, b) => getDateValue(a.createdAt) - getDateValue(b.createdAt)
+  );
+
+  if (permission !== UserType.MOTOBOY) {
+    return sortedByCreatedAt;
+  }
+
   const statusPriority: Record<string, number> = {
     [StatusDelivery.ONCOURSE]: 0,
     [StatusDelivery.COLLECTED]: 1,
   };
 
-  return [...list].sort((a, b) => {
+  return sortedByCreatedAt.sort((a, b) => {
     const priorityA = statusPriority[a.status] ?? 99;
     const priorityB = statusPriority[b.status] ?? 99;
 
@@ -168,21 +176,16 @@ const refreshDashboard = useCallback(
     }
   }, []);
 
-    const getMotoboys = useCallback(async () => {
-      if (
-        permission === UserType.SHOPKEEPER ||
-        permission === UserType.MOTOBOY
-      ) {
-        return;
-      }
+  const getMotoboys = useCallback(async () => {
+    if (permission === "shopkeeper") return;
 
-      try {
-        const motoboysRes = await api.get("/user/motoboys");
-        setMotoboys(motoboysRes.data ?? []);
-      } catch (error) {
-        console.error("Erro ao carregar motoboys:", error);
-      }
-    }, [permission]);
+    try {
+      const motoboysRes = await api.get("/user/motoboys");
+      setMotoboys(motoboysRes.data ?? []);
+    } catch (error) {
+      console.error("Erro ao carregar motoboys:", error);
+    }
+  }, [permission]);
 
   const getMyself = useCallback(async () => {
     try {
