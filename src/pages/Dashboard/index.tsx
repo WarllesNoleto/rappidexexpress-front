@@ -114,7 +114,7 @@ const refreshDashboard = useCallback(
     }
 
     try {
-            const [currentResponse, countsResponse] = await Promise.all([
+      const [currentResponse, countsResponse] = await Promise.all([
         api.get(`/delivery?status=${status}&itemsPerPage=30`),
         api.get(`/delivery/counts`),
       ]);
@@ -365,9 +365,26 @@ const refreshDashboard = useCallback(
     return match[1];
   }
 
-  function getHours(date: string) {
-    return date.split("T")[1].substring(0, 5);
+  function getHours(date?: string | Date | null) {
+  if (!date) return "--:--";
+
+  const parsedDate = new Date(date);
+
+  if (!Number.isNaN(parsedDate.getTime())) {
+    const hour = String(parsedDate.getHours()).padStart(2, "0");
+    const minute = String(parsedDate.getMinutes()).padStart(2, "0");
+    return `${hour}:${minute}`;
   }
+
+  const rawValue = String(date);
+  const match = rawValue.match(/(\d{2}):(\d{2})/);
+
+  if (match) {
+    return `${match[1]}:${match[2]}`;
+  }
+
+  return "--:--";
+}
 
   function getClientWhatsappMessage(report: Report) {
     if (!report.establishmentCityId) {
