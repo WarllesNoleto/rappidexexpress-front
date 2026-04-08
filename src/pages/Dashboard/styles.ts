@@ -318,18 +318,8 @@ export const Status = styled.p<StatusProps>`
     props.type === StatusDelivery.ONCOURSE ? 'blue' : 'green'};
 `;
 
-export const Flag = styled.span`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 6px;
-  margin-left: 0.45rem;
-  border-radius: 999px;
+export const Flag = styled.p`
   background-color: ${(props) => props.theme['green-700']};
-  color: ${(props) => props.theme['gray-100']};
-  font-size: 0.8rem;
-  font-weight: bold;
-  line-height: 1;
+  width: 15px;
+  text-align: center;
 `;

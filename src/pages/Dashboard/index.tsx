@@ -51,8 +51,7 @@ export function Dashboard() {
   const [reports, setReports] = useState<Report[]>([]);
   const [cities, setCities] = useState<City[]>([]);
   const [motoboys, setMotoboys] = useState<Motoboy[]>([]);
-  const [pendingCount, setPendingCount] = useState<number>(0);
-  const [assignedCount, setAssignedCount] = useState<number>(0);
+  const [reportsCount, setReportsCount] = useState<number>(0);
 
   const [selectedMotoboy, setSelectedMotoboy] = useState<string>("");
 
@@ -71,49 +70,26 @@ export function Dashboard() {
     setIsVisible((state) => !state);
   }
 
-  const getTabCounts = useCallback(async () => {
-  try {
-    const [pendingResponse, assignedResponse] = await Promise.all([
-      api.get(
-        `/delivery?status=${StatusDelivery.PENDING}&page=1&itemsPerPage=1`
-      ),
-      api.get(
-        `/delivery?status=${StatusDelivery.ONCOURSE},${StatusDelivery.COLLECTED}&page=1&itemsPerPage=1`
-      ),
-    ]);
-
-    setPendingCount(Number(pendingResponse.data?.count ?? 0));
-    setAssignedCount(Number(assignedResponse.data?.count ?? 0));
-  } catch (error) {
-    console.error("Erro ao carregar contadores:", error);
-  }
-}, []);
-
   const getData = useCallback(
-  async (showLoader = true) => {
-    if (showLoader) {
-      setLoading(true);
-    }
-
-    try {
-      const response = await api.get(`/delivery?status=${status}`);
-      setReports(response.data.data ?? []);
-      await getTabCounts();
-
-      if (permission !== "shopkeeper") {
-        const motoboysRes = await api.get("/user/motoboys");
-        setMotoboys(motoboysRes.data ?? []);
-      }
-    } catch (error: any) {
-      alert(error.response?.data?.message || "Erro ao carregar pedidos.");
-    } finally {
+    async (showLoader = true) => {
       if (showLoader) {
-        setLoading(false);
+        setLoading(true);
       }
-    }
-  },
-  [status, permission, getTabCounts]
-);
+
+      try {
+        const response = await api.get(`/delivery?status=${status}`);
+        setReports(response.data.data ?? []);
+        setReportsCount(response.data.count ?? 0);
+      } catch (error: any) {
+        alert(error.response?.data?.message || "Erro ao carregar pedidos.");
+      } finally {
+        if (showLoader) {
+          setLoading(false);
+        }
+      }
+    },
+    [status]
+  );
 
   const getCities = useCallback(async () => {
     try {
@@ -421,7 +397,9 @@ export function Dashboard() {
           onClick={() => setStatus(StatusDelivery.PENDING)}
         >
           Livres
-          <Flag>{pendingCount}</Flag>
+          {!loading && status === StatusDelivery.PENDING && (
+            <Flag>{reportsCount}</Flag>
+          )}
         </BaseButton>
 
         <BaseButton
@@ -431,7 +409,9 @@ export function Dashboard() {
           }
         >
           Atribuídos
-          <Flag>{assignedCount}</Flag>
+          {!loading && status !== StatusDelivery.PENDING && (
+            <Flag>{reportsCount}</Flag>
+          )}
         </BaseButton>
       </ContainerButtons>
 
