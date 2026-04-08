@@ -160,16 +160,21 @@ const refreshDashboard = useCallback(
     }
   }, []);
 
-  const getMotoboys = useCallback(async () => {
-    if (permission === "shopkeeper") return;
+    const getMotoboys = useCallback(async () => {
+      if (
+        permission === UserType.SHOPKEEPER ||
+        permission === UserType.MOTOBOY
+      ) {
+        return;
+      }
 
-    try {
-      const motoboysRes = await api.get("/user/motoboys");
-      setMotoboys(motoboysRes.data ?? []);
-    } catch (error) {
-      console.error("Erro ao carregar motoboys:", error);
-    }
-  }, [permission]);
+      try {
+        const motoboysRes = await api.get("/user/motoboys");
+        setMotoboys(motoboysRes.data ?? []);
+      } catch (error) {
+        console.error("Erro ao carregar motoboys:", error);
+      }
+    }, [permission]);
 
   const getMyself = useCallback(async () => {
     try {
