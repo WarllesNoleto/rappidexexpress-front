@@ -105,18 +105,6 @@ function sortDashboardReports(list: Report[]) {
   });
 }
 
-    function getResponseCount(response: any) {
-  if (typeof response?.data?.count === "number") {
-    return response.data.count;
-  }
-
-  if (Array.isArray(response?.data?.data)) {
-    return response.data.data.length;
-  }
-
-  return 0;
-}
-
 const refreshDashboard = useCallback(
   async (showLoader = true) => {
     const requestId = ++refreshRequestIdRef.current;
@@ -126,27 +114,10 @@ const refreshDashboard = useCallback(
     }
 
     try {
-<<<<<<< HEAD
-<<<<<<< HEAD
-      const [currentResponse, countsResponse] = await Promise.all([
+            const [currentResponse, countsResponse] = await Promise.all([
         api.get(`/delivery?status=${status}&itemsPerPage=30`),
         api.get(`/delivery/counts`),
       ]);
-=======
-=======
->>>>>>> parent of fdb18bf (Update index.tsx)
-      const [currentResponse, pendingResponse, assignedResponse] =
-        await Promise.all([
-          api.get(`/delivery?status=${status}`),
-          api.get(`/delivery?status=${StatusDelivery.PENDING}`),
-          api.get(
-            `/delivery?status=${StatusDelivery.ONCOURSE},${StatusDelivery.COLLECTED}`
-          ),
-        ]);
-<<<<<<< HEAD
->>>>>>> parent of fdb18bf (Update index.tsx)
-=======
->>>>>>> parent of fdb18bf (Update index.tsx)
 
       if (requestId !== refreshRequestIdRef.current) {
         return;
@@ -157,8 +128,8 @@ const refreshDashboard = useCallback(
         : [];
 
       setReports(sortDashboardReports(rawReports));
-      setPendingCount(getResponseCount(pendingResponse));
-      setAssignedCount(getResponseCount(assignedResponse));
+      setPendingCount(Number(countsResponse.data?.pendingCount ?? 0));
+      setAssignedCount(Number(countsResponse.data?.assignedCount ?? 0));
     } catch (error: any) {
       if (requestId !== refreshRequestIdRef.current) {
         return;
@@ -394,26 +365,9 @@ const refreshDashboard = useCallback(
     return match[1];
   }
 
-  function getHours(date?: string | Date | null) {
-  if (!date) return "--:--";
-
-  const parsedDate = new Date(date);
-
-  if (!Number.isNaN(parsedDate.getTime())) {
-    const hour = String(parsedDate.getHours()).padStart(2, "0");
-    const minute = String(parsedDate.getMinutes()).padStart(2, "0");
-    return `${hour}:${minute}`;
+  function getHours(date: string) {
+    return date.split("T")[1].substring(0, 5);
   }
-
-  const rawValue = String(date);
-  const match = rawValue.match(/(\d{2}):(\d{2})/);
-
-  if (match) {
-    return `${match[1]}:${match[2]}`;
-  }
-
-  return "--:--";
-}
 
   function getClientWhatsappMessage(report: Report) {
     if (!report.establishmentCityId) {
