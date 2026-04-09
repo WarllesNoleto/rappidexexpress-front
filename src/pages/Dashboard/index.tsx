@@ -774,12 +774,10 @@ export function Dashboard() {
   }, [clientWhatsappMessageByCityId]);
 
   useEffect(() => {
-    const shouldShowLoader = !didFirstLoadRef.current;
-
-    void refreshDashboard(shouldShowLoader).finally(() => {
+    void refreshDashboard(true).finally(() => {
       didFirstLoadRef.current = true;
     });
-  }, [refreshDashboard]);
+}, [refreshDashboard]);
 
   useEffect(() => {
     void getCities();
