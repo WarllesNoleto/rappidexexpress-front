@@ -30,7 +30,10 @@ import {
 } from "./styles";
 import { Loader } from "../../components/Loader";
 import { BaseModal } from "../../components/Modal";
-import { StatusDelivery, UserType } from "../../shared/constants/enums.constants";
+import {
+  StatusDelivery,
+  UserType,
+} from "../../shared/constants/enums.constants";
 import {
   getLinkToWhatsapp,
   messageTypes,
@@ -43,6 +46,11 @@ type DeliveryUpdateData = {
   deliveryCode?: string;
 };
 
+type DeliveryCountsDelta = {
+  pending: number;
+  assigned: number;
+};
+
 export function Dashboard() {
   const { token, permission } = useContext(DeliveryContext);
 
@@ -53,16 +61,19 @@ export function Dashboard() {
   const [motoboys, setMotoboys] = useState<Motoboy[]>([]);
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [assignedCount, setAssignedCount] = useState<number>(0);
+  const [updatingDeliveryIds, setUpdatingDeliveryIds] = useState<string[]>([]);
 
   const [selectedMotoboy, setSelectedMotoboy] = useState<string>("");
 
   const [currentCityId, setCurrentCityId] = useState<string>("");
   const reloadTimeoutRef = useRef<number | null>(null);
   const refreshRequestIdRef = useRef(0);
+  const didFirstLoadRef = useRef(false);
 
   const [isVisible, setIsVisible] = useState<boolean>(false);
   const [observation, setObservation] = useState<string>("");
-  const [reportSelectedToModal, setReportSelectedToModal] = useState<string>("");
+  const [reportSelectedToModal, setReportSelectedToModal] =
+    useState<string>("");
 
   useEffect(() => {
     api.defaults.headers.common.Authorization = `Bearer ${token}`;
@@ -73,93 +84,145 @@ export function Dashboard() {
   }
 
   function getDateValue(date?: string) {
-  if (!date) return 0;
+    if (!date) return 0;
 
-  const parsed = new Date(date).getTime();
-  return Number.isNaN(parsed) ? 0 : parsed;
-}
+    const parsed = new Date(date).getTime();
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
 
-function sortDashboardReports(list: Report[]) {
-  const sortedByCreatedAt = [...list].sort(
-    (a, b) => getDateValue(a.createdAt) - getDateValue(b.createdAt)
+  const sortDashboardReports = useCallback(
+    (list: Report[]) => {
+      const sortedByCreatedAt = [...list].sort(
+        (a, b) => getDateValue(a.createdAt) - getDateValue(b.createdAt),
+      );
+
+      if (permission !== UserType.MOTOBOY) {
+        return sortedByCreatedAt;
+      }
+
+      const statusPriority: Record<string, number> = {
+        [StatusDelivery.ONCOURSE]: 0,
+        [StatusDelivery.COLLECTED]: 1,
+      };
+
+      return sortedByCreatedAt.sort((a, b) => {
+        const priorityA = statusPriority[a.status] ?? 99;
+        const priorityB = statusPriority[b.status] ?? 99;
+
+        if (priorityA !== priorityB) {
+          return priorityA - priorityB;
+        }
+
+        return getDateValue(a.createdAt) - getDateValue(b.createdAt);
+      });
+    },
+    [permission],
   );
 
-  if (permission !== UserType.MOTOBOY) {
-    return sortedByCreatedAt;
-  }
+  function normalizeDeliveryResponse(payload: any): Report | null {
+    if (!payload) return null;
 
-  const statusPriority: Record<string, number> = {
-    [StatusDelivery.ONCOURSE]: 0,
-    [StatusDelivery.COLLECTED]: 1,
-  };
-
-  return sortedByCreatedAt.sort((a, b) => {
-    const priorityA = statusPriority[a.status] ?? 99;
-    const priorityB = statusPriority[b.status] ?? 99;
-
-    if (priorityA !== priorityB) {
-      return priorityA - priorityB;
+    if (payload.data && typeof payload.data === "object") {
+      return payload.data as Report;
     }
 
-    return getDateValue(a.createdAt) - getDateValue(b.createdAt);
-  });
-}
-
-    function getResponseCount(response: any) {
-  if (typeof response?.data?.count === "number") {
-    return response.data.count;
+    return payload as Report;
   }
 
-  if (Array.isArray(response?.data?.data)) {
-    return response.data.data.length;
+  function isInAssigned(statusValue?: string) {
+    return (
+      statusValue === StatusDelivery.ONCOURSE ||
+      statusValue === StatusDelivery.COLLECTED
+    );
   }
 
-  return 0;
-}
+  function getCountDelta(
+    previousStatus?: string,
+    nextStatus?: string,
+  ): DeliveryCountsDelta {
+    return {
+      pending:
+        (previousStatus === StatusDelivery.PENDING ? -1 : 0) +
+        (nextStatus === StatusDelivery.PENDING ? 1 : 0),
+      assigned:
+        (isInAssigned(previousStatus) ? -1 : 0) +
+        (isInAssigned(nextStatus) ? 1 : 0),
+    };
+  }
 
-const refreshDashboard = useCallback(
-  async (showLoader = true) => {
-    const requestId = ++refreshRequestIdRef.current;
+  function statusMatchesCurrentFilter(statusValue?: string) {
+    if (!statusValue) return false;
 
-    if (showLoader) {
-      setLoading(true);
-    }
+    return status.split(",").includes(statusValue);
+  }
 
-    try {
-      const [currentResponse, pendingResponse, assignedResponse] =
-        await Promise.all([
+  function updateReportInListLocally(updatedReport: Report) {
+    setReports((previousReports) => {
+      const withUpdate = previousReports.map((item) =>
+        item.id === updatedReport.id ? { ...item, ...updatedReport } : item,
+      );
+
+      if (!statusMatchesCurrentFilter(updatedReport.status)) {
+        return withUpdate.filter((item) => item.id !== updatedReport.id);
+      }
+
+      return sortDashboardReports(withUpdate);
+    });
+  }
+
+  function startUpdatingDelivery(deliveryId: string) {
+    setUpdatingDeliveryIds((state) =>
+      state.includes(deliveryId) ? state : [...state, deliveryId],
+    );
+  }
+
+  function stopUpdatingDelivery(deliveryId: string) {
+    setUpdatingDeliveryIds((state) => state.filter((id) => id !== deliveryId));
+  }
+
+  function isDeliveryUpdating(deliveryId: string) {
+    return updatingDeliveryIds.includes(deliveryId);
+  }
+
+  const refreshDashboard = useCallback(
+    async (showLoader = false) => {
+      const requestId = ++refreshRequestIdRef.current;
+
+      if (showLoader) {
+        setLoading(true);
+      }
+
+      try {
+        const [currentResponse, countsResponse] = await Promise.all([
           api.get(`/delivery?status=${status}`),
-          api.get(`/delivery?status=${StatusDelivery.PENDING}`),
-          api.get(
-            `/delivery?status=${StatusDelivery.ONCOURSE},${StatusDelivery.COLLECTED}`
-          ),
+          api.get("/delivery/counts"),
         ]);
 
-      if (requestId !== refreshRequestIdRef.current) {
-        return;
-      }
+        if (requestId !== refreshRequestIdRef.current) {
+          return;
+        }
 
-      const rawReports = Array.isArray(currentResponse.data?.data)
-        ? currentResponse.data.data
-        : [];
+        const rawReports = Array.isArray(currentResponse.data?.data)
+          ? currentResponse.data.data
+          : [];
 
-      setReports(sortDashboardReports(rawReports));
-      setPendingCount(getResponseCount(pendingResponse));
-      setAssignedCount(getResponseCount(assignedResponse));
-    } catch (error: any) {
-      if (requestId !== refreshRequestIdRef.current) {
-        return;
-      }
+        setReports(sortDashboardReports(rawReports));
+        setPendingCount(Number(countsResponse.data?.pending) || 0);
+        setAssignedCount(Number(countsResponse.data?.assigned) || 0);
+      } catch (error: any) {
+        if (requestId !== refreshRequestIdRef.current) {
+          return;
+        }
 
-      alert(error.response?.data?.message || "Erro ao carregar pedidos.");
-    } finally {
-      if (showLoader && requestId === refreshRequestIdRef.current) {
-        setLoading(false);
+        alert(error.response?.data?.message || "Erro ao carregar pedidos.");
+      } finally {
+        if (showLoader && requestId === refreshRequestIdRef.current) {
+          setLoading(false);
+        }
       }
-    }
-  },
-  [status]
-);
+    },
+    [sortDashboardReports, status],
+  );
 
   const getCities = useCallback(async () => {
     try {
@@ -167,8 +230,8 @@ const refreshDashboard = useCallback(
       const rawData = Array.isArray(response.data?.data)
         ? response.data.data
         : Array.isArray(response.data)
-        ? response.data
-        : [];
+          ? response.data
+          : [];
 
       setCities(rawData as City[]);
     } catch (error) {
@@ -197,6 +260,10 @@ const refreshDashboard = useCallback(
   }, []);
 
   async function handlerNextStep(report: Report) {
+    if (isDeliveryUpdating(report.id)) {
+      return;
+    }
+
     let data: DeliveryUpdateData | null = null;
     let newStatus = "";
 
@@ -233,7 +300,7 @@ const refreshDashboard = useCallback(
 
       if (isIfoodOrder) {
         const codeTyped = window.prompt(
-          "Digite o código de entrega do iFood informado pelo cliente:"
+          "Digite o código de entrega do iFood informado pelo cliente:",
         );
 
         if (codeTyped === null) {
@@ -260,13 +327,20 @@ const refreshDashboard = useCallback(
     }
 
     try {
+      startUpdatingDelivery(report.id);
       const response = await api.put(`/delivery/${report.id}`, data);
-      const updatedReport = response.data;
+      const updatedReport = normalizeDeliveryResponse(response.data);
+
+      if (!updatedReport) {
+        await refreshDashboard(false);
+        alert(`Solicitação avançada para o passo ${newStatus}`);
+        return;
+      }
 
       if (
         newStatus === StatusDelivery.ONCOURSE &&
         data.motoboyId &&
-        updatedReport?.motoboyId &&
+        updatedReport.motoboyId &&
         updatedReport.motoboyId !== data.motoboyId
       ) {
         await refreshDashboard(false);
@@ -274,35 +348,65 @@ const refreshDashboard = useCallback(
         return;
       }
 
-      await refreshDashboard(false);
+      const delta = getCountDelta(
+        report.status,
+        updatedReport.status || newStatus,
+      );
+      setPendingCount((state) => Math.max(0, state + delta.pending));
+      setAssignedCount((state) => Math.max(0, state + delta.assigned));
+      updateReportInListLocally(updatedReport);
+      void getMotoboys();
+
       alert(`Solicitação avançada para o passo ${newStatus}`);
       setObservation("");
       setReportSelectedToModal("");
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao atualizar pedido.");
+    } finally {
+      stopUpdatingDelivery(report.id);
     }
   }
 
   async function handlerSave(report: Report) {
+    if (isDeliveryUpdating(report.id)) {
+      return;
+    }
+
     if (!selectedMotoboy) {
       alert("Selecione o motoboy");
       return;
     }
 
     try {
-      await api.put(`/delivery/${report.id}`, {
+      startUpdatingDelivery(report.id);
+      const response = await api.put(`/delivery/${report.id}`, {
         motoboyId: selectedMotoboy,
       });
-      await refreshDashboard(false);
+
+      const updatedReport = normalizeDeliveryResponse(response.data);
+
+      if (updatedReport) {
+        updateReportInListLocally(updatedReport);
+      } else {
+        await refreshDashboard(false);
+      }
+      void getMotoboys();
+
       alert("Motoboy foi atualizado com sucesso.");
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao salvar motoboy.");
+    } finally {
+      stopUpdatingDelivery(report.id);
     }
   }
 
   async function handlerCancel(report: Report) {
+    if (isDeliveryUpdating(report.id)) {
+      return;
+    }
+
     const confirmMessage = window.confirm(
-      "Você realmente deseja apagar essa entrega?"
+      "Você realmente deseja apagar essa entrega?",
     );
 
     if (!confirmMessage) {
@@ -310,23 +414,45 @@ const refreshDashboard = useCallback(
     }
 
     try {
+      startUpdatingDelivery(report.id);
       await api.put(`/delivery/${report.id}`, {
         status: "CANCELADO",
       });
-      await refreshDashboard(false);
+
+      const delta = getCountDelta(report.status, StatusDelivery.CANCELED);
+      setPendingCount((state) => Math.max(0, state + delta.pending));
+      setAssignedCount((state) => Math.max(0, state + delta.assigned));
+      setReports((state) => state.filter((item) => item.id !== report.id));
+      void getMotoboys();
+
       alert("O pedido foi cancelado com sucesso.");
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao cancelar pedido.");
+    } finally {
+      stopUpdatingDelivery(report.id);
     }
   }
 
   async function handlerDelete(report: Report) {
+    if (isDeliveryUpdating(report.id)) {
+      return;
+    }
+
     try {
+      startUpdatingDelivery(report.id);
       await api.delete(`/delivery/${report.id}`);
-      await refreshDashboard(false);
+
+      const delta = getCountDelta(report.status, undefined);
+      setPendingCount((state) => Math.max(0, state + delta.pending));
+      setAssignedCount((state) => Math.max(0, state + delta.assigned));
+      setReports((state) => state.filter((item) => item.id !== report.id));
+      void getMotoboys();
+
       alert("Solicitação apagada com sucesso.");
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao apagar pedido.");
+    } finally {
+      stopUpdatingDelivery(report.id);
     }
   }
 
@@ -386,7 +512,7 @@ const refreshDashboard = useCallback(
     }
 
     const city = cities.find(
-      (item) => String(item.id) === String(report.establishmentCityId)
+      (item) => String(item.id) === String(report.establishmentCityId),
     );
 
     const customMessage = city?.clientWhatsappMessage?.trim();
@@ -395,7 +521,11 @@ const refreshDashboard = useCallback(
   }
 
   useEffect(() => {
-    void refreshDashboard(true);
+    const shouldShowLoader = !didFirstLoadRef.current;
+
+    void refreshDashboard(shouldShowLoader).finally(() => {
+      didFirstLoadRef.current = true;
+    });
   }, [refreshDashboard]);
 
   useEffect(() => {
@@ -461,25 +591,25 @@ const refreshDashboard = useCallback(
         setObservation={setObservation}
       />
 
-        <ContainerButtons>
-          <BaseButton
-            typeReport={status === StatusDelivery.PENDING}
-            onClick={() => setStatus(StatusDelivery.PENDING)}
-          >
-            Livres
-            <Flag>{pendingCount}</Flag>
-          </BaseButton>
+      <ContainerButtons>
+        <BaseButton
+          typeReport={status === StatusDelivery.PENDING}
+          onClick={() => setStatus(StatusDelivery.PENDING)}
+        >
+          Livres
+          <Flag>{pendingCount}</Flag>
+        </BaseButton>
 
-          <BaseButton
-            typeReport={status !== StatusDelivery.PENDING}
-            onClick={() =>
-              setStatus(`${StatusDelivery.ONCOURSE},${StatusDelivery.COLLECTED}`)
-            }
-          >
-            Atribuídos
-            <Flag>{assignedCount}</Flag>
-          </BaseButton>
-        </ContainerButtons>
+        <BaseButton
+          typeReport={status !== StatusDelivery.PENDING}
+          onClick={() =>
+            setStatus(`${StatusDelivery.ONCOURSE},${StatusDelivery.COLLECTED}`)
+          }
+        >
+          Atribuídos
+          <Flag>{assignedCount}</Flag>
+        </BaseButton>
+      </ContainerButtons>
 
       <ContainerDeliveries>
         {loading ? (
@@ -509,7 +639,7 @@ const refreshDashboard = useCallback(
                       <Link
                         href={getLinkToWhatsapp(
                           report.establishmentPhone,
-                          messageTypes.motoboy
+                          messageTypes.motoboy,
                         )}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -543,11 +673,13 @@ const refreshDashboard = useCallback(
 
                   <ContainerInfo>
                     <div>
-                      {isIfoodOrder && getIfoodOrderNumber(report.observation) && (
-                        <p>
-                          Pedido iFood: {getIfoodOrderNumber(report.observation)}
-                        </p>
-                      )}
+                      {isIfoodOrder &&
+                        getIfoodOrderNumber(report.observation) && (
+                          <p>
+                            Pedido iFood:{" "}
+                            {getIfoodOrderNumber(report.observation)}
+                          </p>
+                        )}
 
                       <p>Cliente: {report.clientName}</p>
                     </div>
@@ -557,7 +689,7 @@ const refreshDashboard = useCallback(
                         href={getLinkToWhatsapp(
                           report.clientPhone,
                           messageTypes.client,
-                          getClientWhatsappMessage(report)
+                          getClientWhatsappMessage(report),
                         )}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -574,7 +706,7 @@ const refreshDashboard = useCallback(
                       <Link
                         href={getLinkToWhatsapp(
                           report.motoboyPhone,
-                          messageTypes.establishment
+                          messageTypes.establishment,
                         )}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -586,7 +718,9 @@ const refreshDashboard = useCallback(
                   )}
 
                   <ContainerInfo>
-                    {report.createdAt && <p>Criado: {getHours(report.createdAt)}</p>}
+                    {report.createdAt && (
+                      <p>Criado: {getHours(report.createdAt)}</p>
+                    )}
                     {report.onCoursedAt && (
                       <p>Atribuído: {getHours(report.onCoursedAt)}</p>
                     )}
