@@ -48,8 +48,8 @@ async function getOneSignalInstance(): Promise<any> {
   return new Promise((resolve, reject) => {
     const timeout = window.setTimeout(() => {
       reject(new Error('OneSignal não inicializou a tempo.'));
-    }, 10000);
-
+    }, 20000);
+    
     window.OneSignalDeferred!.push((OneSignal: any) => {
       clearTimeout(timeout);
 

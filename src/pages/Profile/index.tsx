@@ -80,7 +80,7 @@ export function Profile(){
     }
 
     async function syncPushStatus() {
-        if (!isOneSignalEnabled) {
+        if (!isOneSignalEnabled()) {
             setIsPushEnabled(false)
             return
         }
@@ -98,7 +98,7 @@ export function Profile(){
         return
     }
 
-    if (!isOneSignalEnabled) {
+    if (!isOneSignalEnabled()) {
         alert('As notificações estão desativadas no ambiente local.')
         return
     }
