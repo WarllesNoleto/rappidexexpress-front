@@ -44,6 +44,7 @@ export function IfoodClients() {
   const [loadingHistoryUser, setLoadingHistoryUser] = useState('');
   const [page, setPage] = useState(1);
   const [hasMoreShopkeepers, setHasMoreShopkeepers] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -89,6 +90,38 @@ export function IfoodClients() {
       } else {
         setLoading(false);
       }
+    }
+  }
+
+  async function loadAllShopkeepers() {
+    setIsSearching(true);
+
+    try {
+      let targetPage = 1;
+      let hasMore = true;
+      const allUsers: User[] = [];
+
+      while (hasMore) {
+        const usersResponse = await api.get(
+          `/user?type=shopkeeper&page=${targetPage}&itemsPerPage=${ITEMS_PER_PAGE}`,
+        );
+
+        const users = Array.isArray(usersResponse.data?.data)
+          ? usersResponse.data.data
+          : [];
+
+        allUsers.push(...users);
+        hasMore = users.length === ITEMS_PER_PAGE;
+        targetPage += 1;
+      }
+
+      setShopkeepers(allUsers);
+      setPage(1);
+      setHasMoreShopkeepers(false);
+    } catch (error: any) {
+      alert(error?.response?.data?.message || 'Erro ao buscar lojistas.');
+    } finally {
+      setIsSearching(false);
     }
   }
 
@@ -187,6 +220,16 @@ export function IfoodClients() {
     loadShopkeepers();
   }, []);
 
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      return;
+    }
+
+    if (shopkeepers.length >= ITEMS_PER_PAGE && hasMoreShopkeepers && !isSearching) {
+      loadAllShopkeepers();
+    }
+  }, [searchTerm]);
+
   async function handleLoadMoreShopkeepers() {
     if (loading || loadingMore || !hasMoreShopkeepers) {
       return;
@@ -210,7 +253,7 @@ export function IfoodClients() {
           value={searchTerm}
         />
 
-        {loading ? (
+        {loading || isSearching ? (
           <LoadingContainer>
             <Loader size={40} biggestColor="green" smallestColor="gray" />
           </LoadingContainer>
@@ -330,7 +373,7 @@ export function IfoodClients() {
           )
         )}
 
-        {!loading && hasMoreShopkeepers && (
+        {!loading && !searchTerm.trim() && hasMoreShopkeepers && (
           <LoadMoreButton disabled={loadingMore} onClick={handleLoadMoreShopkeepers} type="button">
             {loadingMore ? 'Carregando...' : 'Mostrar mais empresas'}
           </LoadMoreButton>
