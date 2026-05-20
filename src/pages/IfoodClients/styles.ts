@@ -154,3 +154,9 @@ export const LoadMoreButton = styled.button`
   padding: 0.75rem 1rem;
   cursor: pointer;
 `;
+
+export const EmptyState = styled.p`
+  color: ${(props) => props.theme['gray-300']};
+  text-align: center;
+  margin-top: 1rem;
+`;

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 
 import { DeliveryContext } from '../../context/DeliveryContext';
 import api from '../../services/api';
@@ -28,6 +28,7 @@ import {
   HistoryItem,
   HistoryList,
   LoadMoreButton,
+  EmptyState,
 } from './styles.ts';
 
 export function IfoodClients() {
@@ -43,6 +44,20 @@ export function IfoodClients() {
   const [loadingHistoryUser, setLoadingHistoryUser] = useState('');
   const [page, setPage] = useState(1);
   const [hasMoreShopkeepers, setHasMoreShopkeepers] = useState(false);
+
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredShopkeepers = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    if (!normalizedSearch) {
+      return shopkeepers;
+    }
+
+    return shopkeepers.filter((shopkeeper) =>
+      (shopkeeper.name || '').toLowerCase().includes(normalizedSearch),
+    );
+  }, [shopkeepers, searchTerm]);
 
   const ITEMS_PER_PAGE = 20;
 
@@ -189,12 +204,21 @@ export function IfoodClients() {
           dos pedidos corretamente.
         </Subtitle>
 
+        <Input
+          onChange={(event) => setSearchTerm(event.target.value)}
+          placeholder="Pesquisar empresa por nome"
+          value={searchTerm}
+        />
+
         {loading ? (
           <LoadingContainer>
             <Loader size={40} biggestColor="green" smallestColor="gray" />
           </LoadingContainer>
         ) : (
-          shopkeepers.map((shopkeeper) => (
+          filteredShopkeepers.length === 0 ? (
+            <EmptyState>Nenhuma empresa encontrada para este nome.</EmptyState>
+          ) : (
+            filteredShopkeepers.map((shopkeeper) => (
             <Card key={shopkeeper.id}>
               <ShopkeeperName>{shopkeeper.name}</ShopkeeperName>
 
@@ -302,7 +326,8 @@ export function IfoodClients() {
                   </HistoryList>
                 )}
             </Card>
-          ))
+            ))
+          )
         )}
 
         {!loading && hasMoreShopkeepers && (
