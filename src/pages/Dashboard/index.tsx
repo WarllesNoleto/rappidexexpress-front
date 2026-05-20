@@ -95,7 +95,7 @@ const getIfoodClientAddress = (observation?: string): string | null => {
     return null;
   }
 
-  const match = observation.match(/(?:Endere[cç]o|End)\s*[:\-]\s*([^\n|]+)/i);
+  const match = observation.match(/(?:Endere[cç]o|End)\s*[:-]\s*([^\n|]+)/i);
 
   if (!match?.[1]) {
     return null;
@@ -130,6 +130,16 @@ const getIfoodClientLocationLink = (
   }
 
   return match[1].trim();
+};
+
+const getGoogleMapsLinkFromAddress = (address?: string | null): string | null => {
+  const normalizedAddress = String(address || "").trim();
+
+  if (!normalizedAddress) {
+    return null;
+  }
+
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(normalizedAddress)}`;
 };
 
 const DeliveryCard = memo(
@@ -167,6 +177,7 @@ const DeliveryCard = memo(
       report.clientLocation,
     );
     const ifoodClientAddress = getIfoodClientAddress(report.observation);
+    const googleMapsAddressLink = getGoogleMapsLinkFromAddress(ifoodClientAddress);
     const motoboySelectId = `motoboy-${report.id}`;
     const shouldShowDeliveryCodeInput =
       isIfoodOrder &&
@@ -234,6 +245,15 @@ const DeliveryCard = memo(
                 rel="noopener noreferrer"
               >
                 <p>Localização cliente</p> <MapPin size={18} />
+              </Link>
+            )}
+            {!ifoodClientLocationLink && googleMapsAddressLink && (
+              <Link
+                href={googleMapsAddressLink}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <p>Localização cliente (Google Maps)</p> <MapPin size={18} />
               </Link>
             )}
           </div>
