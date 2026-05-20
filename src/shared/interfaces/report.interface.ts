@@ -1,6 +1,7 @@
 export interface Report {
     clientName: string;
     clientPhone: string;
+    clientLocation?: string;
     createdAt: string;
     createdBy: string;
     establishmentId: string;

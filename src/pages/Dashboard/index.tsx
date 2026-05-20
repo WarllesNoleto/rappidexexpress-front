@@ -90,7 +90,15 @@ type DeliveryCardProps = {
   deliveryCode: string;
 };
 
-const getIfoodClientLocationLink = (observation?: string): string | null => {
+const getIfoodClientLocationLink = (
+  observation?: string,
+  clientLocation?: string,
+): string | null => {
+  const normalizedClientLocation = String(clientLocation || "").trim();
+  if (normalizedClientLocation) {
+    return normalizedClientLocation;
+  }
+
   if (!observation) {
     return null;
   }
@@ -136,6 +144,7 @@ const DeliveryCard = memo(
       null;
     const ifoodClientLocationLink = getIfoodClientLocationLink(
       report.observation,
+      report.clientLocation,
     );
     const motoboySelectId = `motoboy-${report.id}`;
     const shouldShowDeliveryCodeInput =
