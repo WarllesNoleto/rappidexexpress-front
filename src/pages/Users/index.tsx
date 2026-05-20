@@ -39,7 +39,7 @@ export function Users(){
                 const currentPageUsers: User[] = usersResponse.data.data ?? []
 
                 allUsers = [...allUsers, ...currentPageUsers]
-                hasMoreUsers = currentPageUsers.length > 0
+                hasMoreUsers = currentPageUsers.length === USERS_PAGE_SIZE
                 page += 1
             }
 
