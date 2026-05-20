@@ -19,6 +19,7 @@ import { Loader } from "../../components/Loader";
 import { User } from "../../shared/interfaces";
 
 export function Users(){
+    const USERS_PAGE_SIZE = 200
     const { token } = useContext(DeliveryContext)
     api.defaults.headers.Authorization = `Bearer ${token}`
 
@@ -29,9 +30,20 @@ export function Users(){
 
     const getData = useCallback(async () => {
         try {
-            const usersResponse = await api.get(`/user?type=${type}`)
+            let page = 1
+            let allUsers: User[] = []
+            let hasMoreUsers = true
 
-            setUsers(usersResponse.data.data)
+            while (hasMoreUsers) {
+                const usersResponse = await api.get(`/user?type=${type}&page=${page}&itemsPerPage=${USERS_PAGE_SIZE}`)
+                const currentPageUsers: User[] = usersResponse.data.data ?? []
+
+                allUsers = [...allUsers, ...currentPageUsers]
+                hasMoreUsers = currentPageUsers.length === USERS_PAGE_SIZE
+                page += 1
+            }
+
+            setUsers(allUsers)
             setLoading(false)
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Erro ao carregar usuários.'
