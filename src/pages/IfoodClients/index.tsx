@@ -60,7 +60,7 @@ export function IfoodClients() {
     );
   }, [shopkeepers, searchTerm]);
 
-  const ITEMS_PER_PAGE = 20;
+  const ITEMS_PER_PAGE = 200;
 
   async function loadShopkeepers(targetPage = 1, shouldAppend = false) {
     if (shouldAppend) {
@@ -225,10 +225,10 @@ export function IfoodClients() {
       return;
     }
 
-    if (shopkeepers.length >= ITEMS_PER_PAGE && hasMoreShopkeepers && !isSearching) {
+    if (hasMoreShopkeepers && !isSearching) {
       loadAllShopkeepers();
     }
-  }, [searchTerm]);
+  }, [searchTerm, hasMoreShopkeepers, isSearching]);
 
   async function handleLoadMoreShopkeepers() {
     if (loading || loadingMore || !hasMoreShopkeepers) {
