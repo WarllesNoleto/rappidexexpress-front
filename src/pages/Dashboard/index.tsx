@@ -90,6 +90,20 @@ type DeliveryCardProps = {
   deliveryCode: string;
 };
 
+const getIfoodClientLocationLink = (observation?: string): string | null => {
+  if (!observation) {
+    return null;
+  }
+
+  const match = observation.match(/Localização:\s*(https?:\/\/\S+)/i);
+
+  if (!match?.[1]) {
+    return null;
+  }
+
+  return match[1].trim();
+};
+
 const DeliveryCard = memo(
   function DeliveryCard({
     report,
@@ -120,6 +134,9 @@ const DeliveryCard = memo(
       (report as any).ifoodDisplayId ||
       (report as any).ifoodOrderId ||
       null;
+    const ifoodClientLocationLink = getIfoodClientLocationLink(
+      report.observation,
+    );
     const motoboySelectId = `motoboy-${report.id}`;
     const shouldShowDeliveryCodeInput =
       isIfoodOrder &&
@@ -179,6 +196,15 @@ const DeliveryCard = memo(
             {isIfoodOrder && <p>Pedido iFood: {ifoodOrderNumber || "Não informado"}</p>}
 
             <p>Cliente: {report.clientName}</p>
+            {ifoodClientLocationLink && (
+              <Link
+                href={ifoodClientLocationLink}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <p>Localização cliente</p> <MapPin size={18} />
+              </Link>
+            )}
           </div>
 
           {statusFilter !== StatusDelivery.PENDING && (
