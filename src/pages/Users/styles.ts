@@ -82,3 +82,19 @@ export const ProfileImage = styled.img`
 export const Username = styled.p`
     font-weight: bold;
 `;
+
+export const LoadMoreButton = styled.button`
+    width: 100%;
+    border: 0;
+    padding: 1rem;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    color: ${(props) => props.theme['gray-100']};
+    background-color: ${(props) => props.theme['green-700']};
+
+    &:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+`;

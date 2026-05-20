@@ -143,3 +143,14 @@ export const HistoryItem = styled.li`
   color: ${(props) => props.theme['gray-200']};
   font-size: 0.85rem;
 `;
+
+export const LoadMoreButton = styled.button`
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: ${(props) => props.theme['gray-500']};
+  color: ${(props) => props.theme['gray-100']};
+  font-weight: 700;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+`;

@@ -27,6 +27,7 @@ import {
   HistoryButton,
   HistoryItem,
   HistoryList,
+  LoadMoreButton,
 } from './styles.ts';
 
 export function IfoodClients() {
@@ -39,17 +40,27 @@ export function IfoodClients() {
   const [creditAmountByUser, setCreditAmountByUser] = useState<Record<string, number>>({});
   const [historyByUser, setHistoryByUser] = useState<Record<string, any[]>>({});
   const [loadingHistoryUser, setLoadingHistoryUser] = useState('');
+  const [page, setPage] = useState(1);
+  const [hasMoreShopkeepers, setHasMoreShopkeepers] = useState(false);
 
-  async function loadShopkeepers() {
+  const ITEMS_PER_PAGE = 20;
+
+  async function loadShopkeepers(targetPage = 1, shouldAppend = false) {
     setLoading(true);
 
     try {
-      const usersResponse = await api.get('/user?type=shopkeeper&itemsPerPage=100');
+      const usersResponse = await api.get(
+        `/user?type=shopkeeper&page=${targetPage}&itemsPerPage=${ITEMS_PER_PAGE}`,
+      );
       const users = Array.isArray(usersResponse.data?.data)
         ? usersResponse.data.data
         : [];
 
-      setShopkeepers(users);
+      setShopkeepers((currentUsers) =>
+        shouldAppend ? [...currentUsers, ...users] : users,
+      );
+      setPage(targetPage);
+      setHasMoreShopkeepers(users.length === ITEMS_PER_PAGE);
     } catch (error: any) {
       alert(error?.response?.data?.message || 'Erro ao buscar lojistas.');
     } finally {
@@ -151,6 +162,14 @@ export function IfoodClients() {
   useEffect(() => {
     loadShopkeepers();
   }, []);
+
+  async function handleLoadMoreShopkeepers() {
+    if (loading || !hasMoreShopkeepers) {
+      return;
+    }
+
+    await loadShopkeepers(page + 1, true);
+  }
 
   return (
     <Container>
@@ -275,6 +294,12 @@ export function IfoodClients() {
                 )}
             </Card>
           ))
+        )}
+
+        {!loading && hasMoreShopkeepers && (
+          <LoadMoreButton onClick={handleLoadMoreShopkeepers} type="button">
+            Mostrar mais empresas
+          </LoadMoreButton>
         )}
       </Content>
     </Container>
