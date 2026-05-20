@@ -113,3 +113,19 @@ export const NotificationButton = styled(BaseButton)<notificationProps>`
   margin-top: 1rem;
   background: ${(props) => props.theme[props.backgroundColor]};
 `;
+
+export const CreditHistoryContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+`;
+
+export const CreditHistoryItem = styled.div`
+  border: 1px solid ${(props) => props.theme['gray-500']};
+  border-radius: 8px;
+  padding: 0.75rem;
+  color: ${(props) => props.theme['gray-100']};
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.4;
+`;

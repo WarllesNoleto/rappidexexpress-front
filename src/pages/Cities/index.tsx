@@ -131,7 +131,6 @@ export function Cities() {
       setLoading(false)
       setUserLoading(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [permission])
 
     function resetForm() {

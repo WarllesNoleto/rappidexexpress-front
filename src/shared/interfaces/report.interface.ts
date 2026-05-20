@@ -23,4 +23,5 @@ export interface Report {
     onCoursedAt: string;
     collectedAt: string;
     finishedAt: string;
+    isIfoodOrder?: boolean;
 }

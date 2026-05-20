@@ -28,6 +28,52 @@ export const ContainerButtons = styled.div`
   flex-wrap: wrap;
 `;
 
+export const ShopkeeperCreditsContainer = styled.div`
+  width: min(100%, 1200px);
+  background: ${(props) => props.theme['gray-700']};
+  border-radius: 1rem;
+  padding: 1rem;
+  margin: 0.5rem 0 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+`;
+
+export const ShopkeeperCreditsHistory = styled.div`
+  max-height: 12rem;
+  overflow-y: auto;
+  border-top: 1px solid ${(props) => props.theme['gray-500']};
+  padding-top: 0.5rem;
+  font-size: 0.875rem;
+`;
+
+export const ShopkeeperCreditsHistoryItem = styled.div`
+  padding: 0.4rem 0;
+  border-bottom: 1px solid ${(props) => props.theme['gray-600']};
+`;
+
+export const ShopkeeperCreditsToggleButton = styled.button`
+  background: ${(props) => props.theme['gray-500']};
+  color: ${(props) => props.theme['gray-100']};
+  border: 0;
+  border-radius: 0.75rem;
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 0.75rem 1rem;
+  width: fit-content;
+  cursor: pointer;
+  transition: filter 0.2s ease;
+
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  &:not(:disabled):hover {
+    filter: brightness(1.1);
+  }
+`;
+
 interface ButtonProps {
   typeReport: boolean
 }
@@ -275,7 +321,8 @@ export const SelectContainer = styled.div`
   max-width: 100%;
   min-width: 0;
 
-  select {
+  select,
+  input {
     height: 2.5rem;
     background: ${(props) => props.theme['gray-600']};
     color: ${(props) => props.theme['gray-100']};
@@ -283,12 +330,16 @@ export const SelectContainer = styled.div`
     max-width: 100%;
     min-width: 0;
     white-space: normal;
+    border: 1px solid ${(props) => props.theme['gray-500']};
+    border-radius: 0.4rem;
+    padding: 0 0.75rem;
   }
 
   @media (max-width: 480px) {
     margin: 0.75rem;
 
-    select {
+    select,
+    input {
       height: 2.3rem;
       font-size: 0.95rem;
     }

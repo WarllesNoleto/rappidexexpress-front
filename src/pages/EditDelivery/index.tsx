@@ -101,6 +101,12 @@ export function EditDelivery() {
               >
                 <option value={StatusDelivery.CANCELED}>Cancelado</option>
                 <option value={StatusDelivery.COLLECTED}>Coletado</option>
+                <option value={StatusDelivery.ARRIVED_AT_DESTINATION}>
+                  Chegou ao destino
+                </option>
+                <option value={StatusDelivery.AWAITING_CODE}>
+                  Aguardando código
+                </option>
                 <option value={StatusDelivery.FINISHED}>Finalizado</option>
                 <option value={StatusDelivery.ONCOURSE}>A caminho</option>
                 <option value={StatusDelivery.PENDING}>Pendente</option>

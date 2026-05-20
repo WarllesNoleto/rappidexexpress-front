@@ -18,6 +18,10 @@ import {
   getLinkToWhatsapp,
   messageTypes,
 } from "../../shared/constants/whatsapp.constants";
+import {
+  formatIfoodHistoryDateTime,
+  translateIfoodOperationType,
+} from "../../shared/utils/ifoodHistory";
 
 import {
   BaseButton,
@@ -36,6 +40,10 @@ import {
   OrderActions,
   OrderButton,
   SelectContainer,
+  ShopkeeperCreditsContainer,
+  ShopkeeperCreditsHistory,
+  ShopkeeperCreditsHistoryItem,
+  ShopkeeperCreditsToggleButton,
   ShopkeeperInfo,
   ShopkeeperProfileImage,
   Status,
@@ -46,6 +54,7 @@ import {
   StatusDelivery,
   UserType,
 } from "../../shared/constants/enums.constants";
+
 
 type DeliveryUpdateData = {
   status?: string;
@@ -72,11 +81,13 @@ type DeliveryCardProps = {
   onCancel: (report: Report) => void;
   onNextStep: (report: Report) => void;
   onDelete: (report: Report) => void;
-  getButtonText: (currentStatus: string, id: string) => string;
+  onDeliveryCodeChange: (reportId: string, value: string) => void;
+  getButtonText: (currentStatus: string, id: string, report?: Report) => string;
   getHours: (date: string) => string;
   formatPhoneNumber: (phone: string) => string;
   getIfoodOrderNumber: (observation?: string) => string | null;
   getClientWhatsappMessage: (report: Report) => string | undefined;
+  deliveryCode: string;
 };
 
 const DeliveryCard = memo(
@@ -92,15 +103,28 @@ const DeliveryCard = memo(
     onCancel,
     onNextStep,
     onDelete,
+    onDeliveryCodeChange,
     getButtonText,
     getHours,
     formatPhoneNumber,
     getIfoodOrderNumber,
     getClientWhatsappMessage,
+    deliveryCode,
   }: DeliveryCardProps) {
-    const isIfoodOrder = report.observation?.includes("Pedido iFood #") ?? false;
-    const ifoodOrderNumber = getIfoodOrderNumber(report.observation);
+    const isIfoodOrder =
+      Boolean(report.isIfoodOrder) ||
+      report.observation?.includes("Pedido iFood #") ||
+      report.observation?.includes("Pedido iFood");
+    const ifoodOrderNumber =
+      getIfoodOrderNumber(report.observation) ||
+      (report as any).ifoodDisplayId ||
+      (report as any).ifoodOrderId ||
+      null;
     const motoboySelectId = `motoboy-${report.id}`;
+    const shouldShowDeliveryCodeInput =
+      isIfoodOrder &&
+      (report.status === StatusDelivery.ARRIVED_AT_DESTINATION ||
+        report.status === StatusDelivery.AWAITING_CODE);
 
     return (
       <Delivery
@@ -152,9 +176,7 @@ const DeliveryCard = memo(
 
         <ContainerInfo>
           <div>
-            {isIfoodOrder && ifoodOrderNumber && (
-              <p>Pedido iFood: {ifoodOrderNumber}</p>
-            )}
+            {isIfoodOrder && <p>Pedido iFood: {ifoodOrderNumber || "Não informado"}</p>}
 
             <p>Cliente: {report.clientName}</p>
           </div>
@@ -216,6 +238,22 @@ const DeliveryCard = memo(
           </SelectContainer>
         )}
 
+        {shouldShowDeliveryCodeInput && permission !== "shopkeeper" && (
+          <SelectContainer>
+            <label htmlFor={`delivery-code-${report.id}`}>
+              Código de entrega iFood:
+            </label>
+            <input
+              id={`delivery-code-${report.id}`}
+              type="text"
+              value={deliveryCode}
+              disabled={isUpdating}
+              placeholder="Digite o código informado pelo cliente"
+              onChange={(e) => onDeliveryCodeChange(report.id, e.target.value)}
+            />
+          </SelectContainer>
+        )}
+
         <OrderActions>
           {(permission === "admin" || permission === "superadmin") &&
             report.status !== StatusDelivery.PENDING && (
@@ -231,7 +269,7 @@ const DeliveryCard = memo(
 
           {permission !== "shopkeeper" && (
             <OrderButton typebutton={true} onClick={() => onNextStep(report)}>
-              {getButtonText(report.status, report.id)}
+              {getButtonText(report.status, report.id, report)}
             </OrderButton>
           )}
 
@@ -253,6 +291,7 @@ function areDeliveryCardPropsEqual(prev: DeliveryCardProps, next: DeliveryCardPr
     prev.statusFilter === next.statusFilter &&
     prev.permission === next.permission &&
     prev.selectedMotoboy === next.selectedMotoboy &&
+    prev.deliveryCode === next.deliveryCode &&
     prev.reportSelectedToModal === next.reportSelectedToModal &&
     prev.motoboys === next.motoboys &&
     prev.isUpdating === next.isUpdating
@@ -276,6 +315,19 @@ export function Dashboard() {
   const [selectedMotoboyByReport, setSelectedMotoboyByReport] = useState<
     Record<string, string>
   >({});
+  const [deliveryCodeByReport, setDeliveryCodeByReport] = useState<
+    Record<string, string>
+  >({});
+  const [ifoodSummary, setIfoodSummary] = useState<null | {
+    companyName: string;
+    ifoodOrdersReleased: number;
+    ifoodOrdersUsed: number;
+    ifoodOrdersAvailable: number;
+  }>(null);
+  const [ifoodHistory, setIfoodHistory] = useState<any[]>([]);
+  const [showIfoodHistory, setShowIfoodHistory] = useState(false);
+  const [loadingIfoodHistory, setLoadingIfoodHistory] = useState(false);
+  const [hasLoadedIfoodHistory, setHasLoadedIfoodHistory] = useState(false);
 
   const [currentCityId, setCurrentCityId] = useState<string>("");
   const reloadTimeoutRef = useRef<number | null>(null);
@@ -314,6 +366,8 @@ export function Dashboard() {
     const statusPriority: Record<string, number> = {
       [StatusDelivery.ONCOURSE]: 0,
       [StatusDelivery.COLLECTED]: 1,
+      [StatusDelivery.ARRIVED_AT_DESTINATION]: 2,
+      [StatusDelivery.AWAITING_CODE]: 3,
     };
 
     return sortedByCreatedAt.sort((a, b) => {
@@ -360,7 +414,9 @@ export function Dashboard() {
   function isInAssigned(statusValue?: string) {
     return (
       statusValue === StatusDelivery.ONCOURSE ||
-      statusValue === StatusDelivery.COLLECTED
+      statusValue === StatusDelivery.COLLECTED ||
+      statusValue === StatusDelivery.ARRIVED_AT_DESTINATION ||
+      statusValue === StatusDelivery.AWAITING_CODE
     );
   }
 
@@ -504,6 +560,79 @@ export function Dashboard() {
     }
   }, []);
 
+  const getShopkeeperIfoodCredits = useCallback(async () => {
+    if (permission !== UserType.SHOPKEEPER && permission !== UserType.SHOPKEEPERADMIN) {
+      return;
+    }
+
+    try {
+            const summaryResponse = await api.get("/ifood/credits/my-summary");
+
+      setIfoodSummary({
+        companyName: summaryResponse.data?.companyName || "",
+        ifoodOrdersReleased: Number(summaryResponse.data?.ifoodOrdersReleased) || 0,
+        ifoodOrdersUsed: Number(summaryResponse.data?.ifoodOrdersUsed) || 0,
+        ifoodOrdersAvailable: Number(summaryResponse.data?.ifoodOrdersAvailable) || 0,
+      });
+      setShowIfoodHistory(false);
+      setIfoodHistory([]);
+      setHasLoadedIfoodHistory(false);
+    } catch (error) {
+      console.error("Erro ao carregar créditos iFood do lojista:", error);
+      setIfoodSummary(null);
+      setIfoodHistory([]);
+      setShowIfoodHistory(false);
+      setHasLoadedIfoodHistory(false);
+    }
+  }, [permission]);
+
+  const getShopkeeperIfoodHistory = useCallback(async () => {
+    if (loadingIfoodHistory) {
+      return;
+    }
+
+    setLoadingIfoodHistory(true);
+    try {
+      const historyResponse = await api.get("/ifood/credits/my-history");
+      setIfoodHistory(
+        Array.isArray(historyResponse.data?.history) ? historyResponse.data.history : [],
+      );
+      setHasLoadedIfoodHistory(true);
+    } catch (error) {
+      console.error("Erro ao carregar histórico iFood do lojista:", error);
+      setIfoodHistory([]);
+      setHasLoadedIfoodHistory(false);
+    } finally {
+      setLoadingIfoodHistory(false);
+    }
+  }, [loadingIfoodHistory]);
+
+  async function handleToggleIfoodHistory() {
+    const shouldShowHistory = !showIfoodHistory;
+
+    if (!shouldShowHistory) {
+      setShowIfoodHistory(false);
+      return;
+    }
+
+    if (!hasLoadedIfoodHistory) {
+      await getShopkeeperIfoodHistory();
+    }
+
+    setShowIfoodHistory(true);
+  }
+
+
+  function getObservationPatch() {
+    const trimmedObservation = observation.trim();
+
+    if (!trimmedObservation || trimmedObservation === "Sem observação.") {
+      return {};
+    }
+
+    return { observation: trimmedObservation };
+  }
+
   async function handlerNextStep(report: Report) {
     if (isDeliveryUpdating(report.id)) {
       return;
@@ -540,21 +669,25 @@ export function Dashboard() {
         status: newStatus,
       };
     } else if (report.status === StatusDelivery.COLLECTED) {
+      newStatus = StatusDelivery.ARRIVED_AT_DESTINATION;
+      data = {
+        status: newStatus,
+        ...getObservationPatch(),
+      };
+    } else if (
+      report.status === StatusDelivery.ARRIVED_AT_DESTINATION ||
+      report.status === StatusDelivery.AWAITING_CODE
+    ) {
       newStatus = StatusDelivery.FINISHED;
 
-      const isIfoodOrder = report.observation?.includes("Pedido iFood #");
+      const isIfoodOrder =
+        Boolean(report.isIfoodOrder) ||
+        report.observation?.includes("Pedido iFood #") ||
+        report.observation?.includes("Pedido iFood");
       let deliveryCode = "";
 
       if (isIfoodOrder) {
-        const codeTyped = window.prompt(
-          "Digite o código de entrega do iFood informado pelo cliente:",
-        );
-
-        if (codeTyped === null) {
-          return;
-        }
-
-        deliveryCode = codeTyped.trim();
+        deliveryCode = (deliveryCodeByReport[report.id] || "").trim();
 
         if (!deliveryCode) {
           alert("Informe o código de entrega do iFood.");
@@ -564,7 +697,7 @@ export function Dashboard() {
 
       data = {
         status: newStatus,
-        observation: observation === "Sem observação." ? "" : observation,
+        ...getObservationPatch(),
         deliveryCode,
       };
     }
@@ -604,6 +737,11 @@ export function Dashboard() {
       updateReportInListLocally(updatedReport);
       alert(`Solicitação avançada para o passo ${newStatus}`);
       setObservation("");
+      setDeliveryCodeByReport((state) => {
+        const nextState = { ...state };
+        delete nextState[report.id];
+        return nextState;
+      });
       setReportSelectedToModal("");
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao atualizar pedido.");
@@ -697,7 +835,7 @@ export function Dashboard() {
     }
   }
 
-  function getButtonText(currentStatus: string, id: string) {
+  function getButtonText(currentStatus: string, id: string, report?: Report) {
     if (StatusDelivery.PENDING === currentStatus) {
       return "Atribuir";
     }
@@ -711,7 +849,18 @@ export function Dashboard() {
         return "Observação";
       }
 
-      return "Finalizar";
+      return "Cheguei ao destino";
+    }
+
+    if (
+      StatusDelivery.ARRIVED_AT_DESTINATION === currentStatus ||
+      StatusDelivery.AWAITING_CODE === currentStatus
+    ) {
+      const isIfoodOrder =
+        Boolean(report?.isIfoodOrder) ||
+        report?.observation?.includes("Pedido iFood #") ||
+        report?.observation?.includes("Pedido iFood");
+      return isIfoodOrder ? "Confirmar código" : "Finalizar";
     }
 
     return "Avançar";
@@ -734,7 +883,9 @@ export function Dashboard() {
       return null;
     }
 
-    const match = observation.match(/Pedido iFood\s*#\s*(\d+)/i);
+    const match = observation.match(
+      /Pedido\s*(?:do\s*)?iFood(?:\s*(?:n[ºo°.]|n[uú]mero))?\s*[:#-]?\s*([A-Za-z0-9-]+)/i,
+    );
 
     if (!match) {
       return null;
@@ -745,6 +896,10 @@ export function Dashboard() {
 
   function getHours(date: string) {
     return date.split("T")[1].substring(0, 5);
+  }
+
+   function formatHistoryDateTime(dateValue?: string) {
+    return formatIfoodHistoryDateTime(dateValue);
   }
 
   function getSelectedMotoboy(report: Report) {
@@ -764,6 +919,13 @@ export function Dashboard() {
     },
     [],
   );
+
+  const handleDeliveryCodeChange = useCallback((reportId: string, value: string) => {
+    setDeliveryCodeByReport((state) => ({
+      ...state,
+      [reportId]: value,
+    }));
+  }, []);
 
   const getClientWhatsappMessage = useCallback((report: Report) => {
     if (!report.establishmentCityId) {
@@ -804,6 +966,10 @@ export function Dashboard() {
   useEffect(() => {
     void getMyself();
   }, [getMyself]);
+
+  useEffect(() => {
+    void getShopkeeperIfoodCredits();
+  }, [getShopkeeperIfoodCredits]);
 
   useEffect(() => {
     if (!currentCityId) return;
@@ -862,13 +1028,50 @@ export function Dashboard() {
         <BaseButton
           typeReport={status !== StatusDelivery.PENDING}
           onClick={() =>
-            setStatus(`${StatusDelivery.ONCOURSE},${StatusDelivery.COLLECTED}`)
+            setStatus(`${StatusDelivery.ONCOURSE},${StatusDelivery.COLLECTED},${StatusDelivery.ARRIVED_AT_DESTINATION},${StatusDelivery.AWAITING_CODE}`)
           }
         >
           Atribuídos
           <Flag>{assignedCount}</Flag>
         </BaseButton>
       </ContainerButtons>
+
+      {ifoodSummary && (
+        <ShopkeeperCreditsContainer>
+          <strong>Créditos para pedidos - {ifoodSummary.companyName || "Minha empresa"}</strong>
+          <span>
+            Liberados: {ifoodSummary.ifoodOrdersReleased} | Utilizados: {ifoodSummary.ifoodOrdersUsed} | Disponíveis: {ifoodSummary.ifoodOrdersAvailable}
+          </span>
+          <ShopkeeperCreditsToggleButton
+            disabled={loadingIfoodHistory}
+            onClick={() => void handleToggleIfoodHistory()}
+            type="button"
+          >
+            {loadingIfoodHistory
+              ? "Carregando..."
+              : showIfoodHistory
+                ? "Ocultar histórico"
+                : "Ver histórico"}
+          </ShopkeeperCreditsToggleButton>
+          {showIfoodHistory && (
+            <ShopkeeperCreditsHistory>
+              {ifoodHistory.length === 0 ? (
+                <ShopkeeperCreditsHistoryItem>Nenhum histórico disponível.</ShopkeeperCreditsHistoryItem>
+              ) : (
+                ifoodHistory.map((historyItem) => (
+                  <ShopkeeperCreditsHistoryItem key={historyItem?.id}>
+                    {(() => {
+                      const formattedDateTime = formatHistoryDateTime(historyItem?.createdAt);
+
+                      return `${translateIfoodOperationType(historyItem?.operationType)} | Qtd: ${historyItem?.amount ?? 0} | Saldo: ${historyItem?.availableAfterOperation ?? 0} | Data: ${formattedDateTime.date} | Hora: ${formattedDateTime.time}`;
+                    })()}
+                  </ShopkeeperCreditsHistoryItem>
+                ))
+              )}
+            </ShopkeeperCreditsHistory>
+          )}
+        </ShopkeeperCreditsContainer>
+      )}
 
       <ContainerDeliveries>
         {loading ? (
@@ -892,11 +1095,13 @@ export function Dashboard() {
                 onCancel={handlerCancel}
                 onNextStep={handlerNextStep}
                 onDelete={handlerDelete}
+                onDeliveryCodeChange={handleDeliveryCodeChange}
                 getButtonText={getButtonText}
                 getHours={getHours}
                 formatPhoneNumber={formatPhoneNumber}
                 getIfoodOrderNumber={getIfoodOrderNumber}
                 getClientWhatsappMessage={getClientWhatsappMessage}
+                deliveryCode={deliveryCodeByReport[report.id] || ""}
               />
             ))}
           </>

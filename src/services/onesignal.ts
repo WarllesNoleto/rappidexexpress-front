@@ -1,7 +1,26 @@
+interface OneSignalPushSubscription {
+  id?: string | null;
+  optedIn?: boolean;
+  optIn?: () => Promise<void>;
+  optOut?: () => Promise<void>;
+}
+
+interface OneSignalApi {
+  User?: {
+    PushSubscription?: OneSignalPushSubscription;
+  };
+  Notifications?: {
+    isPushSupported?: () => boolean;
+    requestPermission: () => Promise<void>;
+  };
+}
+
+type OneSignalDeferredCallback = (OneSignal: OneSignalApi) => void;
+
 declare global {
   interface Window {
-    OneSignal?: any;
-    OneSignalDeferred?: Array<(OneSignal: any) => void>;
+    OneSignal?: OneSignalApi;
+    OneSignalDeferred?: OneSignalDeferredCallback[];
     __ONESIGNAL_STATUS__?: {
       initialized: boolean;
       failed: boolean;
@@ -28,8 +47,8 @@ export function isOneSignalEnabled(): boolean {
   return true;
 }
 
-async function getOneSignalInstance(): Promise<any> {
-  if (!isFeatureEnabledByEnv()) {
+async function getOneSignalInstance(): Promise<OneSignalApi> {
+    if (!isFeatureEnabledByEnv()) {
     throw new Error('OneSignal desativado neste ambiente.');
   }
 
@@ -50,7 +69,7 @@ async function getOneSignalInstance(): Promise<any> {
       reject(new Error('OneSignal não inicializou a tempo.'));
     }, 20000);
     
-    window.OneSignalDeferred!.push((OneSignal: any) => {
+    window.OneSignalDeferred!.push((OneSignal: OneSignalApi) => {
       clearTimeout(timeout);
 
       if (window.__ONESIGNAL_STATUS__?.failed) {
@@ -94,8 +113,9 @@ export async function enablePushAndGetSubscriptionId(): Promise<string | null> {
 
   await OneSignal.Notifications.requestPermission();
 
-  if (!OneSignal?.User?.PushSubscription?.optedIn) {
-    await OneSignal.User.PushSubscription.optIn();
+  const optIn = OneSignal?.User?.PushSubscription?.optIn;
+  if (!OneSignal?.User?.PushSubscription?.optedIn && optIn) {
+    await optIn();
   }
 
   return OneSignal?.User?.PushSubscription?.id ?? null;
@@ -104,7 +124,8 @@ export async function enablePushAndGetSubscriptionId(): Promise<string | null> {
 export async function disablePush(): Promise<void> {
   const OneSignal = await getOneSignalInstance();
 
-  if (OneSignal?.User?.PushSubscription?.optOut) {
-    await OneSignal.User.PushSubscription.optOut();
+  const optOut = OneSignal?.User?.PushSubscription?.optOut;
+  if (optOut) {
+    await optOut();
   }
 }

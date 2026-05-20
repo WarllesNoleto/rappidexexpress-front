@@ -143,6 +143,38 @@ export function Reports() {
         return date.split('T')[1].substring(0, 5)
     }
 
+    function getObservation(report: Report) {
+        const observation = report.observation?.trim()
+        const isIfoodOrder = Boolean(
+            report.isIfoodOrder || observation?.includes('Pedido iFood #')
+        )
+
+        if (isIfoodOrder && observation) {
+            const normalizedParts = observation
+                .split('|')
+                .map(part => part.trim())
+                .filter(Boolean)
+
+            if (report.status === 'CANCELADO' || report.status === 'FINALIZADO') {
+                return normalizedParts.join(' | ')
+            }
+
+            const finalStatusParts = normalizedParts.filter(
+                part =>
+                    part.startsWith('Pedido iFood #') ||
+                    part.startsWith('Endereço:')
+            )
+
+            return finalStatusParts.join(' | ') || observation
+        }
+
+        if (isIfoodOrder) {
+            return 'Pedido iFood importado automaticamente pelo Developer Portal.'
+        }
+
+        return observation || ''
+    }
+
     useEffect(() => {
         if(loadingInitial) {
             getData()
@@ -224,8 +256,10 @@ export function Reports() {
             {!loadingInitial &&
             <ReportsContainer>
                 <h3>Quantidade de entregas: {reportsCount}</h3>
-                {reports.map((report: Report) => 
-                    <Delivery key={report.id}>
+                {reports.map((report: Report) => {
+                    const observation = getObservation(report)
+
+                    return <Delivery key={report.id}>
                         <ContainerShopkeeper>
                             <ProfileImageContainer>
                                 <ShopkeeperProfileImage src={report.establishmentImage} />
@@ -241,8 +275,8 @@ export function Reports() {
                             <p>Valor: R$ {report.value}</p>
                             <p>Pix: {report.establishmentPix}</p>
                             <p>Refrigerante: {report.soda}</p>
-                            {report.observation && 
-                                <p><b>Observação: {report.observation}</b></p>
+                            {observation && 
+                                <p><b>Observação: {observation}</b></p>
                             }
                         </ContainerOrder>
 
@@ -281,7 +315,7 @@ export function Reports() {
                             </EditContainer>
                         }
                     </Delivery>
-                )}
+                })}
 
                 {reports.length < reportsCount && 
                     <EditContainer onClick={moreReports}>

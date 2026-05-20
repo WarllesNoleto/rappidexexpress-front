@@ -6,13 +6,26 @@ interface DeliveryState {
     permission: string | null
 }
 
-export function deliveryReducer(state: DeliveryState, action: any) {
+interface DeliveryAction {
+    type: ActionTypes
+    payload?: {
+        token: string
+        permission: string
+    }
+}
+
+export function deliveryReducer(state: DeliveryState, action: DeliveryAction) {
     switch (action.type) {
-        case ActionTypes.LOGIN:
+        case ActionTypes.LOGIN: {
+            if (!action.payload) {
+                return state
+            }
+            const payload = action.payload
             return produce(state, (draft) => {
-                draft.token = action.payload.token
-                draft.permission = action.payload.permission
+                draft.token = payload.token
+                draft.permission = payload.permission
             })
+        }
         case ActionTypes.LOGOUT:
             return produce(state, (draft) => {
                 draft.token = null

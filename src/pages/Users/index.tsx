@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { DeliveryContext } from "../../context/DeliveryContext";
@@ -25,19 +25,19 @@ export function Users(){
     const navigate = useNavigate()
     const [type, setType] = useState('shopkeeper');
     const [loading, setLoading] = useState(true)
-    const [users, setUsers] = useState([])
+    const [users, setUsers] = useState<User[]>([])
 
-    async function getData(){
+    const getData = useCallback(async () => {
         try {
             const usersResponse = await api.get(`/user?type=${type}`)
 
             setUsers(usersResponse.data.data)
             setLoading(false)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (error: any) {
-            alert(error.response.data.message)
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Erro ao carregar usuários.'
+            alert(message)
         }
-    }
+    }, [type])
 
     function handleMotoboys(){
         setLoading(true)
@@ -53,11 +53,9 @@ export function Users(){
         navigate(`/novo-usuario/${user}`)
     }
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         getData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [type])
+    }, [getData])
 
     return (
         <Container>
