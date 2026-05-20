@@ -35,6 +35,7 @@ export function IfoodClients() {
   api.defaults.headers.Authorization = `Bearer ${token}`;
 
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [savingUser, setSavingUser] = useState('');
   const [shopkeepers, setShopkeepers] = useState<User[]>([]);
   const [creditAmountByUser, setCreditAmountByUser] = useState<Record<string, number>>({});
@@ -46,7 +47,11 @@ export function IfoodClients() {
   const ITEMS_PER_PAGE = 20;
 
   async function loadShopkeepers(targetPage = 1, shouldAppend = false) {
-    setLoading(true);
+    if (shouldAppend) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
 
     try {
       const usersResponse = await api.get(
@@ -64,7 +69,11 @@ export function IfoodClients() {
     } catch (error: any) {
       alert(error?.response?.data?.message || 'Erro ao buscar lojistas.');
     } finally {
-      setLoading(false);
+      if (shouldAppend) {
+        setLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
     }
   }
 
@@ -164,7 +173,7 @@ export function IfoodClients() {
   }, []);
 
   async function handleLoadMoreShopkeepers() {
-    if (loading || !hasMoreShopkeepers) {
+    if (loading || loadingMore || !hasMoreShopkeepers) {
       return;
     }
 
@@ -297,8 +306,8 @@ export function IfoodClients() {
         )}
 
         {!loading && hasMoreShopkeepers && (
-          <LoadMoreButton onClick={handleLoadMoreShopkeepers} type="button">
-            Mostrar mais empresas
+          <LoadMoreButton disabled={loadingMore} onClick={handleLoadMoreShopkeepers} type="button">
+            {loadingMore ? 'Carregando...' : 'Mostrar mais empresas'}
           </LoadMoreButton>
         )}
       </Content>
