@@ -9,6 +9,7 @@ import {
   UserPlus,
   MapPin,
   Storefront,
+  MagnifyingGlass,
 } from 'phosphor-react'
 
 import { HeaderContainer, RappidexLogo } from './styles'
@@ -35,6 +36,15 @@ export function Header() {
         {(permission === 'admin' || permission === 'superadmin') && 
           <NavLink to="/clientes-ifood" title="Empresas Cadastradas">
             <Storefront size={24} />
+          </NavLink>
+        }
+
+        {(permission === 'admin' || permission === 'superadmin') && 
+          <NavLink
+            to="/relatorios"
+            title="Varredura iFood (finalizados/cancelados)"
+          >
+            <MagnifyingGlass size={24} />
           </NavLink>
         }
         {permission === 'superadmin' &&
