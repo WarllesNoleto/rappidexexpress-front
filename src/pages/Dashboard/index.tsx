@@ -237,8 +237,10 @@ const DeliveryCard = memo(
             {isIfoodOrder && <p>Pedido iFood: {ifoodOrderNumber || "Não informado"}</p>}
 
             <p>Cliente: {report.clientName}</p>
-            {ifoodClientAddress && <p>Endereço: {ifoodClientAddress}</p>}
-            {ifoodClientLocationLink && (
+            {statusFilter !== StatusDelivery.PENDING && ifoodClientAddress && (
+              <p>Endereço: {ifoodClientAddress}</p>
+            )}
+            {statusFilter !== StatusDelivery.PENDING && ifoodClientLocationLink && (
               <Link
                 href={ifoodClientLocationLink}
                 target="_blank"
@@ -247,7 +249,7 @@ const DeliveryCard = memo(
                 <p>Localização cliente</p> <MapPin size={18} />
               </Link>
             )}
-            {!ifoodClientLocationLink && googleMapsAddressLink && (
+            {statusFilter !== StatusDelivery.PENDING && !ifoodClientLocationLink && googleMapsAddressLink && (
               <Link
                 href={googleMapsAddressLink}
                 target="_blank"
