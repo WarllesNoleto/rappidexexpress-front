@@ -45,6 +45,7 @@ export function Reports() {
     const [selectedEstablishment, setSelectedEstablishment] = useState('');
     const [createdIn, setCreatedIn] = useState('');
     const [createdUntil, setCreatedUntil] = useState('');
+    const [cleaningIfood, setCleaningIfood] = useState(false);
 
     function formatNumber(number: string){
         const cleaned = ('' + number).replace(/\D/g, '');
@@ -86,6 +87,38 @@ export function Reports() {
         } catch (error: any) {
             alert(error.response.data.message)
             setLoading(false)
+        }
+    }
+
+
+    async function onClickCleanupIfood(){
+        if(cleaningIfood){
+            return
+        }
+
+        if(!selectedEstablishment){
+            alert('Selecione um estabelecimento para limpar os pedidos iFood importados.')
+            return
+        }
+
+        const confirmCleanup = window.confirm('Deseja limpar os pedidos em LIVRE/ATRIBUÍDO no Rappidex que já estão concluídos/cancelados no iFood para este estabelecimento?')
+
+        if(!confirmCleanup){
+            return
+        }
+
+        setCleaningIfood(true)
+
+        try {
+            const response = await api.post('/delivery/cleanup/ifood-stale', {
+                companyId: selectedEstablishment,
+            })
+
+            alert(`Limpeza concluída. Verificados (LIVRE/ATRIBUÍDO): ${response.data.checked}. Removidos: ${response.data.removed}.`)
+            setCleaningIfood(false)
+        } catch (error: any) {
+            alert(error.response?.data?.message || 'Não foi possível concluir a limpeza de pedidos iFood.')
+            setCleaningIfood(false)
         }
     }
 
@@ -251,6 +284,15 @@ export function Reports() {
                         "Buscar"
                     }
                     </SearchButton>
+
+                    {(permission === 'admin' || permission === 'superadmin') &&
+                        <SearchButton onClick={onClickCleanupIfood}>
+                            {cleaningIfood ?
+                                <Loader size={20} biggestColor='gray' smallestColor='gray' /> :
+                                "Limpar iFood (Livre/Atribuído)"
+                            }
+                        </SearchButton>
+                    }
                 </FiltersContainer>
             }
             {!loadingInitial &&
