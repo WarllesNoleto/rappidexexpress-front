@@ -113,9 +113,9 @@ export async function enablePushAndGetSubscriptionId(): Promise<string | null> {
 
   await OneSignal.Notifications.requestPermission();
 
-  const optIn = OneSignal?.User?.PushSubscription?.optIn;
-  if (!OneSignal?.User?.PushSubscription?.optedIn && optIn) {
-    await optIn();
+  const pushSubscription = OneSignal?.User?.PushSubscription;
+  if (!pushSubscription?.optedIn && pushSubscription?.optIn) {
+    await pushSubscription.optIn();
   }
 
   return OneSignal?.User?.PushSubscription?.id ?? null;
@@ -124,8 +124,8 @@ export async function enablePushAndGetSubscriptionId(): Promise<string | null> {
 export async function disablePush(): Promise<void> {
   const OneSignal = await getOneSignalInstance();
 
-  const optOut = OneSignal?.User?.PushSubscription?.optOut;
-  if (optOut) {
-    await optOut();
+  const pushSubscription = OneSignal?.User?.PushSubscription;
+  if (pushSubscription?.optOut) {
+    await pushSubscription.optOut();
   }
 }
