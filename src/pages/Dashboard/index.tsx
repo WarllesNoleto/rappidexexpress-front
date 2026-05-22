@@ -18,10 +18,6 @@ import {
   getLinkToWhatsapp,
   messageTypes,
 } from "../../shared/constants/whatsapp.constants";
-import {
-  formatIfoodHistoryDateTime,
-  translateIfoodOperationType,
-} from "../../shared/utils/ifoodHistory";
 
 import {
   BaseButton,
@@ -40,10 +36,6 @@ import {
   OrderActions,
   OrderButton,
   SelectContainer,
-  ShopkeeperCreditsContainer,
-  ShopkeeperCreditsHistory,
-  ShopkeeperCreditsHistoryItem,
-  ShopkeeperCreditsToggleButton,
   ShopkeeperInfo,
   ShopkeeperProfileImage,
   Status,
@@ -163,6 +155,28 @@ const DeliveryCard = memo(
     getClientWhatsappMessage,
     deliveryCode,
   }: DeliveryCardProps) {
+    const getClientVisualStatus = (delivery: Report) => {
+      if (delivery.collectedAt) return "Motoboy está a caminho";
+      if (delivery.arrivedAtStoreAt && !delivery.collectedAt) {
+        return "Motoboy chegou ao estabelecimento";
+      }
+      if (delivery.motoboyId && !delivery.arrivedAtStoreAt) {
+        return "Motoboy indo até o estabelecimento";
+      }
+      return "Aguardando motoboy";
+    };
+
+    const getEstablishmentVisualStatus = (delivery: Report) => {
+      if (delivery.collectedAt) return "Pedido coletado pelo motoboy";
+      if (delivery.arrivedAtStoreAt && !delivery.collectedAt) {
+        return "Motoboy chegou no estabelecimento";
+      }
+      if (delivery.motoboyId && !delivery.arrivedAtStoreAt) {
+        return "Motoboy indo até o estabelecimento";
+      }
+      return "Aguardando motoboy";
+    };
+
     const isIfoodOrder =
       Boolean(report.isIfoodOrder) ||
       report.observation?.includes("Pedido iFood #") ||
@@ -225,6 +239,11 @@ const DeliveryCard = memo(
               <p>Status:</p>
               <Status type={report.status}>{report.status}</Status>
             </ContainerStatus>
+            <p>
+              {permission === UserType.SHOPKEEPER
+                ? getEstablishmentVisualStatus(report)
+                : getClientVisualStatus(report)}
+            </p>
             <p>Forma de pagamento: {report.payment}</p>
             <p>Valor: R$ {report.value}</p>
             <p>Pix: {report.establishmentPix}</p>
@@ -397,17 +416,6 @@ export function Dashboard() {
   const [deliveryCodeByReport, setDeliveryCodeByReport] = useState<
     Record<string, string>
   >({});
-  const [ifoodSummary, setIfoodSummary] = useState<null | {
-    companyName: string;
-    ifoodOrdersReleased: number;
-    ifoodOrdersUsed: number;
-    ifoodOrdersAvailable: number;
-  }>(null);
-  const [ifoodHistory, setIfoodHistory] = useState<any[]>([]);
-  const [showIfoodHistory, setShowIfoodHistory] = useState(false);
-  const [loadingIfoodHistory, setLoadingIfoodHistory] = useState(false);
-  const [hasLoadedIfoodHistory, setHasLoadedIfoodHistory] = useState(false);
-
   const [currentCityId, setCurrentCityId] = useState<string>("");
   const reloadTimeoutRef = useRef<number | null>(null);
   const refreshRequestIdRef = useRef(0);
@@ -493,6 +501,7 @@ export function Dashboard() {
   function isInAssigned(statusValue?: string) {
     return (
       statusValue === StatusDelivery.ONCOURSE ||
+      statusValue === StatusDelivery.ARRIVED_AT_STORE ||
       statusValue === StatusDelivery.COLLECTED ||
       statusValue === StatusDelivery.ARRIVED_AT_DESTINATION ||
       statusValue === StatusDelivery.AWAITING_CODE
@@ -639,69 +648,6 @@ export function Dashboard() {
     }
   }, []);
 
-  const getShopkeeperIfoodCredits = useCallback(async () => {
-    if (permission !== UserType.SHOPKEEPER && permission !== UserType.SHOPKEEPERADMIN) {
-      return;
-    }
-
-    try {
-            const summaryResponse = await api.get("/ifood/credits/my-summary");
-
-      setIfoodSummary({
-        companyName: summaryResponse.data?.companyName || "",
-        ifoodOrdersReleased: Number(summaryResponse.data?.ifoodOrdersReleased) || 0,
-        ifoodOrdersUsed: Number(summaryResponse.data?.ifoodOrdersUsed) || 0,
-        ifoodOrdersAvailable: Number(summaryResponse.data?.ifoodOrdersAvailable) || 0,
-      });
-      setShowIfoodHistory(false);
-      setIfoodHistory([]);
-      setHasLoadedIfoodHistory(false);
-    } catch (error) {
-      console.error("Erro ao carregar créditos iFood do lojista:", error);
-      setIfoodSummary(null);
-      setIfoodHistory([]);
-      setShowIfoodHistory(false);
-      setHasLoadedIfoodHistory(false);
-    }
-  }, [permission]);
-
-  const getShopkeeperIfoodHistory = useCallback(async () => {
-    if (loadingIfoodHistory) {
-      return;
-    }
-
-    setLoadingIfoodHistory(true);
-    try {
-      const historyResponse = await api.get("/ifood/credits/my-history");
-      setIfoodHistory(
-        Array.isArray(historyResponse.data?.history) ? historyResponse.data.history : [],
-      );
-      setHasLoadedIfoodHistory(true);
-    } catch (error) {
-      console.error("Erro ao carregar histórico iFood do lojista:", error);
-      setIfoodHistory([]);
-      setHasLoadedIfoodHistory(false);
-    } finally {
-      setLoadingIfoodHistory(false);
-    }
-  }, [loadingIfoodHistory]);
-
-  async function handleToggleIfoodHistory() {
-    const shouldShowHistory = !showIfoodHistory;
-
-    if (!shouldShowHistory) {
-      setShowIfoodHistory(false);
-      return;
-    }
-
-    if (!hasLoadedIfoodHistory) {
-      await getShopkeeperIfoodHistory();
-    }
-
-    setShowIfoodHistory(true);
-  }
-
-
   function getObservationPatch() {
     const trimmedObservation = observation.trim();
 
@@ -743,6 +689,11 @@ export function Dashboard() {
         motoboyId: selectedMotoboy,
       };
     } else if (report.status === StatusDelivery.ONCOURSE) {
+      newStatus = StatusDelivery.ARRIVED_AT_STORE;
+      data = {
+        status: newStatus,
+      };
+    } else if (report.status === StatusDelivery.ARRIVED_AT_STORE) {
       newStatus = StatusDelivery.COLLECTED;
       data = {
         status: newStatus,
@@ -920,6 +871,10 @@ export function Dashboard() {
     }
 
     if (StatusDelivery.ONCOURSE === currentStatus) {
+      return "Cheguei no estabelecimento";
+    }
+
+    if (StatusDelivery.ARRIVED_AT_STORE === currentStatus) {
       return "Coletar";
     }
 
@@ -975,10 +930,6 @@ export function Dashboard() {
 
   function getHours(date: string) {
     return date.split("T")[1].substring(0, 5);
-  }
-
-   function formatHistoryDateTime(dateValue?: string) {
-    return formatIfoodHistoryDateTime(dateValue);
   }
 
   function getSelectedMotoboy(report: Report) {
@@ -1047,10 +998,6 @@ export function Dashboard() {
   }, [getMyself]);
 
   useEffect(() => {
-    void getShopkeeperIfoodCredits();
-  }, [getShopkeeperIfoodCredits]);
-
-  useEffect(() => {
     if (!currentCityId) return;
 
     const socket = io(SOCKET_URL, {
@@ -1107,50 +1054,15 @@ export function Dashboard() {
         <BaseButton
           typeReport={status !== StatusDelivery.PENDING}
           onClick={() =>
-            setStatus(`${StatusDelivery.ONCOURSE},${StatusDelivery.COLLECTED},${StatusDelivery.ARRIVED_AT_DESTINATION},${StatusDelivery.AWAITING_CODE}`)
+            setStatus(
+              `${StatusDelivery.ONCOURSE},${StatusDelivery.ARRIVED_AT_STORE},${StatusDelivery.COLLECTED},${StatusDelivery.ARRIVED_AT_DESTINATION},${StatusDelivery.AWAITING_CODE}`,
+            )
           }
         >
           Atribuídos
           <Flag>{assignedCount}</Flag>
         </BaseButton>
       </ContainerButtons>
-
-      {ifoodSummary && (
-        <ShopkeeperCreditsContainer>
-          <strong>Créditos para pedidos - {ifoodSummary.companyName || "Minha empresa"}</strong>
-          <span>
-            Liberados: {ifoodSummary.ifoodOrdersReleased} | Utilizados: {ifoodSummary.ifoodOrdersUsed} | Disponíveis: {ifoodSummary.ifoodOrdersAvailable}
-          </span>
-          <ShopkeeperCreditsToggleButton
-            disabled={loadingIfoodHistory}
-            onClick={() => void handleToggleIfoodHistory()}
-            type="button"
-          >
-            {loadingIfoodHistory
-              ? "Carregando..."
-              : showIfoodHistory
-                ? "Ocultar histórico"
-                : "Ver histórico"}
-          </ShopkeeperCreditsToggleButton>
-          {showIfoodHistory && (
-            <ShopkeeperCreditsHistory>
-              {ifoodHistory.length === 0 ? (
-                <ShopkeeperCreditsHistoryItem>Nenhum histórico disponível.</ShopkeeperCreditsHistoryItem>
-              ) : (
-                ifoodHistory.map((historyItem) => (
-                  <ShopkeeperCreditsHistoryItem key={historyItem?.id}>
-                    {(() => {
-                      const formattedDateTime = formatHistoryDateTime(historyItem?.createdAt);
-
-                      return `${translateIfoodOperationType(historyItem?.operationType)} | Qtd: ${historyItem?.amount ?? 0} | Saldo: ${historyItem?.availableAfterOperation ?? 0} | Data: ${formattedDateTime.date} | Hora: ${formattedDateTime.time}`;
-                    })()}
-                  </ShopkeeperCreditsHistoryItem>
-                ))
-              )}
-            </ShopkeeperCreditsHistory>
-          )}
-        </ShopkeeperCreditsContainer>
-      )}
 
       <ContainerDeliveries>
         {loading ? (

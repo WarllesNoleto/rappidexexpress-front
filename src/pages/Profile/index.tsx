@@ -13,7 +13,6 @@ import {
 
 import { DeliveryContext } from '../../context/DeliveryContext';
 import api from '../../services/api';
-import { formatIfoodHistoryDateTime, translateIfoodOperationType } from '../../shared/utils/ifoodHistory.ts';
 
 import { 
     BaseInput, 
@@ -24,8 +23,6 @@ import {
     FormContainer, 
     ProfileImage,
     NotificationButton,
-    CreditHistoryContainer,
-    CreditHistoryItem,
 } from "./styles";
 import { Loader } from '../../components/Loader';
 
@@ -58,13 +55,6 @@ export function Profile(){
     const [cityDisplay, setCityDisplay] = useState('')
     const [cityId, setCityId] = useState('')
     const [isPushEnabled, setIsPushEnabled] = useState(false)
-    const [ifoodSummary, setIfoodSummary] = useState<null | {
-        companyName: string
-        ifoodOrdersReleased: number
-        ifoodOrdersUsed: number
-        ifoodOrdersAvailable: number
-    }>(null)
-    const [ifoodHistory, setIfoodHistory] = useState<any[]>([])
     const [formValues, setFormValues] = useState({
         name: '',
         phone: '',
@@ -77,10 +67,6 @@ export function Profile(){
         resolver: zodResolver(ProfileFormValidationSchema),
         values: formValues,
     })
-
-     function formatHistoryDateTime(dateValue?: string) {
-        return formatIfoodHistoryDateTime(dateValue)
-    }
 
     function handleConfig() {
         navigate('/configuracao')
@@ -182,37 +168,6 @@ export function Profile(){
 
             setUsername(response.data.user)
             setProfileImage(response.data.profileImage)
-
-            const normalizedUserType = String(response.data?.type || '').toLowerCase()
-            const normalizedPermission = String(permission || '').toLowerCase()
-            const isShopkeeperUser =
-                ['shopkeeper', 'shopkeeperadmin'].includes(normalizedUserType) ||
-                ['shopkeeper', 'shopkeeperadmin'].includes(normalizedPermission)
-
-            if (isShopkeeperUser) {
-                try {
-                    const ifoodCreditsResponse = await api.get('/ifood/credits/my-summary')
-                    const ifoodHistoryResponse = await api.get('/ifood/credits/my-history')
-                    setIfoodSummary({
-                        companyName: ifoodCreditsResponse.data?.companyName || response.data?.name || '',
-                        ifoodOrdersReleased: ifoodCreditsResponse.data?.ifoodOrdersReleased || 0,
-                        ifoodOrdersUsed: ifoodCreditsResponse.data?.ifoodOrdersUsed || 0,
-                        ifoodOrdersAvailable: ifoodCreditsResponse.data?.ifoodOrdersAvailable || 0,
-                    })
-                    setIfoodHistory(Array.isArray(ifoodHistoryResponse.data?.history) ? ifoodHistoryResponse.data.history : [])
-                } catch {
-                    setIfoodSummary({
-                        companyName: response.data?.name || '',
-                        ifoodOrdersReleased: response.data?.ifoodOrdersReleased || 0,
-                        ifoodOrdersUsed: response.data?.ifoodOrdersUsed || 0,
-                        ifoodOrdersAvailable: response.data?.ifoodOrdersAvailable || 0,
-                    })
-                    setIfoodHistory([])
-                }
-                } else {
-                setIfoodSummary(null)
-                setIfoodHistory([])
-            }
 
             const userCityId = response.data?.cityId
                 ?? response.data?.city?.id
@@ -342,43 +297,6 @@ export function Profile(){
                             readOnly
                             disabled
                         />
-
-                        {ifoodSummary && (
-                            <>
-                                <label>Créditos iFood:</label>
-                                <BaseInput
-                                    type="text"
-                                    readOnly
-                                    disabled
-                                    value={`Empresa: ${ifoodSummary.companyName || '-'} | Liberados: ${ifoodSummary.ifoodOrdersReleased} | Utilizados: ${ifoodSummary.ifoodOrdersUsed} | Disponíveis: ${ifoodSummary.ifoodOrdersAvailable}`}
-                                />
-                                <label>Histórico de créditos iFood:</label>
-                                <CreditHistoryContainer>
-                                    {ifoodHistory.length === 0 ? (
-                                        <CreditHistoryItem>Nenhum histórico disponível.</CreditHistoryItem>
-                                    ) : (
-                                        ifoodHistory.map((historyItem) => (
-                                            <CreditHistoryItem key={historyItem?.id}>
-                                                {(() => {
-                                                    const formattedDateTime = formatHistoryDateTime(historyItem?.createdAt)
-
-                                                    return (
-                                                        <>
-                                                            <div>Data: {formattedDateTime.date}</div>
-                                                            <div>Hora: {formattedDateTime.time}</div>
-                                                        </>
-                                                    )
-                                                })()}
-                                                 <div>Operação: {translateIfoodOperationType(historyItem?.operationType)}</div>
-                                                <div>Quantidade: {historyItem?.amount ?? 0}</div>
-                                                <div>Disponíveis após operação: {historyItem?.availableAfterOperation ?? 0}</div>
-                                                {historyItem?.reason && <div>Motivo: {historyItem.reason}</div>}
-                                            </CreditHistoryItem>
-                                        ))
-                                    )}
-                                </CreditHistoryContainer>
-                            </>
-                        )}
 
                         <ContainerButtons>
                             <NotificationButton

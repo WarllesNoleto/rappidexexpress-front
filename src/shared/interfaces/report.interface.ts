@@ -22,7 +22,11 @@ export interface Report {
     observation: string;
     soda: string;
     onCoursedAt: string;
+    arrivedAtStoreAt?: string;
     collectedAt: string;
+    ifoodStatus?: string;
+    externalStatus?: string;
+    logisticsStatus?: string;
     finishedAt: string;
     isIfoodOrder?: boolean;
 }
