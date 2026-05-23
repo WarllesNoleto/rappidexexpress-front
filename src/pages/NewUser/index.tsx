@@ -29,6 +29,7 @@ const ProfileFormValidationSchema = zod.object({
   profileImage: zod.string(),
   location: zod.string(),
   useIfoodIntegration: zod.boolean().optional(),
+  usesExternalIfoodPdv: zod.boolean().optional(),
   ifoodMerchantId: zod.string().optional(),
 });
 
@@ -51,6 +52,7 @@ export function NewUser() {
     profileImage: "",
     location: "",
     useIfoodIntegration: false,
+    usesExternalIfoodPdv: false,
     ifoodMerchantId: "",
   });
 
@@ -89,6 +91,9 @@ export function NewUser() {
       : loggedUserCityId;
     const useIfoodIntegration = Boolean(data.useIfoodIntegration);
     const ifoodMerchantId = (data.ifoodMerchantId || "").trim();
+    const usesExternalIfoodPdv = useIfoodIntegration
+      ? Boolean(data.usesExternalIfoodPdv)
+      : false;
 
     if (useIfoodIntegration && !ifoodMerchantId) {
       alert("Para integração iFood, preencha o merchantId.");
@@ -113,6 +118,7 @@ export function NewUser() {
             : "none",
         cityId: cityIdToSubmit,
         useIfoodIntegration,
+        usesExternalIfoodPdv,
         ifoodMerchantId,
       });
       reset();
@@ -140,6 +146,7 @@ export function NewUser() {
       location,
       useIfoodIntegration,
       ifoodMerchantId,
+      usesExternalIfoodPdv,
     } = watch();
     const cityIdToSubmit = allowCitySelection
       ? selectedCityId
@@ -167,6 +174,7 @@ export function NewUser() {
         type: selectedType,
         cityId: cityIdToSubmit,
         useIfoodIntegration: Boolean(useIfoodIntegration),
+        usesExternalIfoodPdv: Boolean(useIfoodIntegration) && Boolean(usesExternalIfoodPdv),
         ifoodMerchantId: (ifoodMerchantId || "").trim(),
       });
       setLoading(false);
@@ -445,6 +453,7 @@ export function NewUser() {
                     setValue("useIfoodIntegration", enabled);
 
                     if (!enabled) {
+                      setValue("usesExternalIfoodPdv", false);
                       setValue("ifoodMerchantId", "");
                     }
                   }}
@@ -454,6 +463,14 @@ export function NewUser() {
 
               {useIfoodIntegration && (
                 <>
+                  <label htmlFor="usesExternalIfoodPdv">
+                    <input
+                      type="checkbox"
+                      id="usesExternalIfoodPdv"
+                      {...register("usesExternalIfoodPdv")}
+                    />{" "}
+                    Usa PDV externo integrado ao iFood?
+                  </label>
                   <label htmlFor="ifoodMerchantId">iFood Merchant ID:</label>
                   <BaseInput
                     type="text"

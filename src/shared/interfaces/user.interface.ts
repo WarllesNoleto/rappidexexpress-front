@@ -11,6 +11,7 @@ export interface User {
   type: string;
   user: string;
   useIfoodIntegration?: boolean;
+  usesExternalIfoodPdv?: boolean;
   ifoodOrdersReleased?: number;
   ifoodOrdersUsed?: number;
   ifoodOrdersAvailable?: number;
