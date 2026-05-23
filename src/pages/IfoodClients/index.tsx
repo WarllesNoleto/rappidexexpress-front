@@ -149,6 +149,9 @@ export function IfoodClients() {
     try {
       await api.put(`/user/${shopkeeper.id}`, {
         useIfoodIntegration: Boolean(shopkeeper.useIfoodIntegration),
+        usesExternalIfoodPdv:
+          Boolean(shopkeeper.useIfoodIntegration) &&
+          Boolean(shopkeeper.usesExternalIfoodPdv),
         ifoodMerchantId: merchantId,
       });
 
@@ -272,6 +275,9 @@ export function IfoodClients() {
                     onChange={(event) =>
                       updateLocalUser(shopkeeper.id, {
                         useIfoodIntegration: event.target.checked,
+                        usesExternalIfoodPdv: event.target.checked
+                          ? Boolean(shopkeeper.usesExternalIfoodPdv)
+                          : false,
                         ifoodMerchantId: event.target.checked
                           ? shopkeeper.ifoodMerchantId
                           : '',
@@ -281,6 +287,21 @@ export function IfoodClients() {
                   />
                   Usar integração iFood
                 </Checkbox>
+
+                {shopkeeper.useIfoodIntegration && (
+                  <Checkbox>
+                    <input
+                      checked={Boolean(shopkeeper.usesExternalIfoodPdv)}
+                      onChange={(event) =>
+                        updateLocalUser(shopkeeper.id, {
+                          usesExternalIfoodPdv: event.target.checked,
+                        })
+                      }
+                      type="checkbox"
+                    />
+                    Usa PDV externo integrado ao iFood?
+                  </Checkbox>
+                )}
 
                 <div>
                   <MerchantIdLabel htmlFor={`merchant-${shopkeeper.id}`}>
