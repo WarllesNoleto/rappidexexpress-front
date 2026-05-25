@@ -352,6 +352,13 @@ const DeliveryCard = memo(
           </SelectContainer>
         )}
 
+        {(report.status === StatusDelivery.ARRIVED_AT_DESTINATION ||
+          report.status === StatusDelivery.AWAITING_CODE) && (
+          <ContainerInfo>
+            <p><b>Observação do pedido:</b> {report.observation?.trim() || "Sem observações"}</p>
+          </ContainerInfo>
+        )}
+
         <OrderActions>
           {(permission === "admin" || permission === "superadmin") &&
             report.status !== StatusDelivery.PENDING && (
@@ -498,27 +505,33 @@ export function Dashboard() {
     return payload as Report;
   }
 
-  function isInAssigned(statusValue?: string) {
-    return (
-      statusValue === StatusDelivery.ONCOURSE ||
-      statusValue === StatusDelivery.ARRIVED_AT_STORE ||
-      statusValue === StatusDelivery.COLLECTED ||
-      statusValue === StatusDelivery.ARRIVED_AT_DESTINATION ||
-      statusValue === StatusDelivery.AWAITING_CODE
-    );
+  function isAssignedDelivery(report?: Partial<Report> | null) {
+    if (!report) return false;
+
+    const statusValue = report.status;
+    const hasMotoboy = Boolean(report.motoboyId);
+    const isActiveDelivery = report.isActive !== false;
+    const isFinishedOrCanceled =
+      statusValue === StatusDelivery.FINISHED ||
+      statusValue === StatusDelivery.CANCELED;
+
+    return hasMotoboy && isActiveDelivery && !isFinishedOrCanceled;
   }
 
   function getCountDelta(
-    previousStatus?: string,
-    nextStatus?: string,
+    previousReport?: Partial<Report> | null,
+    nextReport?: Partial<Report> | null,
   ): DeliveryCountsDelta {
+    const previousStatus = previousReport?.status;
+    const nextStatus = nextReport?.status;
+
     return {
       pending:
         (previousStatus === StatusDelivery.PENDING ? -1 : 0) +
         (nextStatus === StatusDelivery.PENDING ? 1 : 0),
       assigned:
-        (isInAssigned(previousStatus) ? -1 : 0) +
-        (isInAssigned(nextStatus) ? 1 : 0),
+        (isAssignedDelivery(previousReport) ? -1 : 0) +
+        (isAssignedDelivery(nextReport) ? 1 : 0),
     };
   }
 
@@ -759,8 +772,8 @@ export function Dashboard() {
       }
 
       const delta = getCountDelta(
-        report.status,
-        updatedReport.status || newStatus,
+        report,
+        { ...report, ...updatedReport, status: updatedReport.status || newStatus },
       );
       setPendingCount((state) => Math.max(0, state + delta.pending));
       setAssignedCount((state) => Math.max(0, state + delta.assigned));
@@ -801,6 +814,9 @@ export function Dashboard() {
       const updatedReport = normalizeDeliveryResponse(response.data);
 
       if (updatedReport) {
+        const delta = getCountDelta(report, { ...report, ...updatedReport });
+        setPendingCount((state) => Math.max(0, state + delta.pending));
+        setAssignedCount((state) => Math.max(0, state + delta.assigned));
         updateReportInListLocally(updatedReport);
       } else {
         await refreshDashboard(false);
@@ -832,7 +848,7 @@ export function Dashboard() {
         status: "CANCELADO",
       });
 
-      const delta = getCountDelta(report.status, StatusDelivery.CANCELED);
+      const delta = getCountDelta(report, { ...report, status: StatusDelivery.CANCELED });
       setPendingCount((state) => Math.max(0, state + delta.pending));
       setAssignedCount((state) => Math.max(0, state + delta.assigned));
       setReports((state) => state.filter((item) => item.id !== report.id));
@@ -853,7 +869,7 @@ export function Dashboard() {
       startUpdatingDelivery(report.id);
       await api.delete(`/delivery/${report.id}`);
 
-      const delta = getCountDelta(report.status, undefined);
+      const delta = getCountDelta(report, undefined);
       setPendingCount((state) => Math.max(0, state + delta.pending));
       setAssignedCount((state) => Math.max(0, state + delta.assigned));
       setReports((state) => state.filter((item) => item.id !== report.id));
