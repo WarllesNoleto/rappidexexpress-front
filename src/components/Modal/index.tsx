@@ -28,8 +28,9 @@ export function BaseModal({isVisible, handleClose, setObservation}: ModalProps){
             setObservation('Sem observação.')
         } else {
             setObservation(observation);
-            setModalObservation('')
         }
+
+        setModalObservation('')
         handleClose();
     }
 

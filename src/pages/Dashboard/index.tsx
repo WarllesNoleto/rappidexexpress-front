@@ -1080,12 +1080,17 @@ export function Dashboard() {
             return;
           }
 
-          const hasObservation =
-            text.trim() !== "" && text.trim() !== "Sem observação.";
+          const trimmedText = text.trim();
 
           setObservationAddedByReport((state) => ({
             ...state,
-            [reportSelectedToModal]: hasObservation,
+            [reportSelectedToModal]: true,
+          }));
+
+          setObservationPreviewByReport((state) => ({
+            ...state,
+            [reportSelectedToModal]:
+              trimmedText === "Sem observação." ? "" : trimmedText,
           }));
 
           setObservationPreviewByReport((state) => ({
