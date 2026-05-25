@@ -32,6 +32,9 @@ export interface Report {
     observation: string;
     destinationObservation?: string;
     destinationObservationConfirmed?: boolean;
+    ifoodOrderId?: string;
+    ifoodDisplayId?: string;
+    ifoodMerchantId?: string;
     soda: string;
     onCoursedAt: string;
     arrivedAtStoreAt?: string;

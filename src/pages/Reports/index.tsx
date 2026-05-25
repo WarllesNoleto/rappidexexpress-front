@@ -143,41 +143,65 @@ export function Reports() {
         return date.split('T')[1].substring(0, 5)
     }
 
+    function extractIfoodOrderNumber(observation?: string) {
+        if (!observation) return null
+
+        const match = observation.match(
+            /Pedido\s*(?:do\s*)?iFood(?:\s*(?:n[ºo°.]|n[uú]mero))?\s*[:#-]?\s*([A-Za-z0-9-]+)/i
+        )
+
+        return match?.[1] || null
+    }
+
     function getObservation(report: Report) {
-        const observation = report.observation?.trim() || ''
-        const destinationObservation = report.destinationObservation?.trim() || 'Sem observação.'
-        const hasIfoodText = observation.includes('Pedido iFood #') || observation.includes('Pedido iFood')
-        const isIfoodOrder = Boolean(report.isIfoodOrder || hasIfoodText)
+        const originalObservation = report.observation?.trim() || ""
+
+        const isIfoodOrder = Boolean(
+            report.isIfoodOrder ||
+            report.ifoodDisplayId ||
+            report.ifoodOrderId ||
+            originalObservation.includes("Pedido iFood")
+        )
 
         if (!isIfoodOrder) {
-            return observation || ''
+            return originalObservation
         }
 
-        const normalizedParts = observation
-            .split('|')
-            .map(part => part.trim())
-            .filter(Boolean)
+        const oldObservationWasOverwritten =
+            originalObservation.toLowerCase() === "sem observação." ||
+            originalObservation.toLowerCase() === "sem observação" ||
+            originalObservation.includes("Pedido iFood importado automaticamente")
 
-        const ifoodPart = normalizedParts.find(
-            part => part.startsWith('Pedido iFood #') || part.startsWith('Pedido iFood')
-        )
-        const addressPart = normalizedParts.find(part => part.startsWith('Endereço:'))
-        const clientAddressPart = report.clientAddress?.trim()
-            ? `Endereço: ${report.clientAddress.trim()}`
-            : undefined
+        const orderNumber =
+            report.ifoodDisplayId ||
+            report.ifoodOrderId ||
+            extractIfoodOrderNumber(originalObservation) ||
+            "não informado"
 
-        const baseParts = [
-            ifoodPart,
-            addressPart || clientAddressPart,
+        const addressParts = [
+            report.clientAddress,
+            report.addressNeighborhood ? `Bairro: ${report.addressNeighborhood}` : null,
+            [report.addressCity, report.addressState].filter(Boolean).join("/") || null,
+            report.addressZipCode ? `CEP: ${report.addressZipCode}` : null,
         ].filter(Boolean)
 
-        if (!baseParts.length) {
-            baseParts.push('Pedido iFood importado automaticamente')
-        }
+        const addressText = addressParts.join(" | ")
 
-        baseParts.push(`Observação destino: ${destinationObservation}`)
+        const parts = [
+            `Pedido iFood #${orderNumber}`,
+            addressText ? `Endereço: ${addressText}` : null,
+            report.addressMapsUrl ? `Localização: ${report.addressMapsUrl}` : null,
+            !oldObservationWasOverwritten && originalObservation
+                ? originalObservation
+                : null,
+            report.destinationObservation
+                ? `Observação destino: ${report.destinationObservation}`
+                : report.destinationObservationConfirmed
+                    ? "Observação destino: Sem observação."
+                    : null,
+        ].filter(Boolean)
 
-        return baseParts.join(' | ')
+        return parts.join(" | ")
     }
 
     useEffect(() => {
