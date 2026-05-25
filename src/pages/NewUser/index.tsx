@@ -108,7 +108,7 @@ export function NewUser() {
     }
 
     try {
-      await api.post("/user", {
+      const response = await api.post("/user", {
         ...data,
         phone: formatPhone(data.phone),
         type: selectedType,
@@ -121,6 +121,15 @@ export function NewUser() {
         usesExternalIfoodPdv,
         ifoodMerchantId,
       });
+      if (useIfoodIntegration && ifoodMerchantId) {
+        const createdCompanyId = response?.data?.id;
+        if (createdCompanyId) {
+          await api.post(`/ifood/sync-company/${createdCompanyId}`).catch(() => undefined);
+        }
+        alert(
+          "Integração iFood salva. Os pedidos podem levar até 1 minuto para aparecer após ficarem prontos. Sincronização inicial iniciada.",
+        );
+      }
       reset();
       setLoading(false);
       alert("Novo usuário criado com sucesso!");
@@ -177,6 +186,12 @@ export function NewUser() {
         usesExternalIfoodPdv: Boolean(useIfoodIntegration) && Boolean(usesExternalIfoodPdv),
         ifoodMerchantId: (ifoodMerchantId || "").trim(),
       });
+      if (useIfoodIntegration && (ifoodMerchantId || "").trim()) {
+        await api.post(`/ifood/sync-company/${userId}`).catch(() => undefined);
+        alert(
+          "Integração iFood salva. Os pedidos podem levar até 1 minuto para aparecer após ficarem prontos. Sincronização inicial iniciada.",
+        );
+      }
       setLoading(false);
       alert("Usuário editado com sucesso!");
     } catch (error: any) {

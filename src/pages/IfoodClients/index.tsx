@@ -154,8 +154,14 @@ export function IfoodClients() {
           Boolean(shopkeeper.usesExternalIfoodPdv),
         ifoodMerchantId: merchantId,
       });
-
-      alert('Configuração iFood salva com sucesso.');
+      if (shopkeeper.useIfoodIntegration && merchantId) {
+        await api.post(`/ifood/sync-company/${shopkeeper.id}`).catch(() => undefined);
+        alert(
+          'Integração iFood salva. Os pedidos podem levar até 1 minuto para aparecer após ficarem prontos. Sincronização inicial iniciada.',
+        );
+      } else {
+        alert('Configuração iFood salva com sucesso.');
+      }
     } catch (error: any) {
       alert(error?.response?.data?.message || 'Erro ao salvar configuração iFood.');
     } finally {
