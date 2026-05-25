@@ -459,10 +459,9 @@ export function Dashboard() {
 
     const statusPriority: Record<string, number> = {
       [StatusDelivery.ONCOURSE]: 0,
-      [StatusDelivery.ARRIVED_AT_STORE]: 0,
       [StatusDelivery.COLLECTED]: 1,
-      [StatusDelivery.ARRIVED_AT_DESTINATION]: 1,
-      [StatusDelivery.AWAITING_CODE]: 1,
+      [StatusDelivery.ARRIVED_AT_DESTINATION]: 2,
+      [StatusDelivery.AWAITING_CODE]: 3,
     };
 
     return sortedByCreatedAt.sort((a, b) => {
@@ -682,6 +681,15 @@ export function Dashboard() {
     let data: DeliveryUpdateData | null = null;
     let newStatus = "";
 
+    if (
+      report.status === StatusDelivery.COLLECTED &&
+      report.id !== reportSelectedToModal
+    ) {
+      setReportSelectedToModal(report.id);
+      handleModal();
+      return;
+    }
+
     if (report.status === StatusDelivery.PENDING) {
       if (!selectedMotoboy) {
         alert("Selecione o motoboy");
@@ -707,17 +715,12 @@ export function Dashboard() {
       newStatus = StatusDelivery.ARRIVED_AT_DESTINATION;
       data = {
         status: newStatus,
+        ...getObservationPatch(),
       };
     } else if (
       report.status === StatusDelivery.ARRIVED_AT_DESTINATION ||
       report.status === StatusDelivery.AWAITING_CODE
     ) {
-      if (report.id !== reportSelectedToModal) {
-        setReportSelectedToModal(report.id);
-        handleModal();
-        return;
-      }
-
       newStatus = StatusDelivery.FINISHED;
 
       const isIfoodOrder =
@@ -892,6 +895,10 @@ export function Dashboard() {
     }
 
     if (StatusDelivery.COLLECTED === currentStatus) {
+      if (id !== reportSelectedToModal) {
+        return "Observação";
+      }
+
       return "Cheguei ao destino";
     }
 
@@ -899,10 +906,6 @@ export function Dashboard() {
       StatusDelivery.ARRIVED_AT_DESTINATION === currentStatus ||
       StatusDelivery.AWAITING_CODE === currentStatus
     ) {
-      if (id !== reportSelectedToModal) {
-        return "Observação";
-      }
-
       const isIfoodOrder =
         Boolean(report?.isIfoodOrder) ||
         report?.observation?.includes("Pedido iFood #") ||
