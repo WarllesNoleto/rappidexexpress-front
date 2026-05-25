@@ -440,6 +440,8 @@ export function Dashboard() {
   const [isVisible, setIsVisible] = useState<boolean>(false);
   const [reportSelectedToModal, setReportSelectedToModal] =
     useState<string>("");
+  const [observationText, setObservationText] = useState<string>("");
+  const [loadingObservationId, setLoadingObservationId] = useState<string | null>(null);
 
   useEffect(() => {
     api.defaults.headers.common.Authorization = `Bearer ${token}`;
@@ -679,6 +681,7 @@ export function Dashboard() {
     const finalText = text.trim();
 
     try {
+      setLoadingObservationId(deliveryId);
       startUpdatingDelivery(deliveryId);
 
       const response = await api.put(`/delivery/${deliveryId}`, {
@@ -694,11 +697,13 @@ export function Dashboard() {
         await refreshDashboard(false);
       }
 
+      setObservationText("");
       setReportSelectedToModal("");
       handleModal();
     } catch (error: any) {
-      alert(error.response?.data?.message || "Erro ao salvar observação.");
+      alert(error.response?.data?.message || "Não foi possível adicionar a observação.");
     } finally {
+      setLoadingObservationId(null);
       stopUpdatingDelivery(deliveryId);
     }
   }
@@ -743,6 +748,7 @@ export function Dashboard() {
       report.status === StatusDelivery.AWAITING_CODE
     ) {
       if (!report.destinationObservationConfirmed) {
+        setObservationText(report.destinationObservation || "");
         setReportSelectedToModal(report.id);
         handleModal();
         return;
@@ -1083,6 +1089,9 @@ export function Dashboard() {
         onConfirmObservation={(text) => {
           void handleConfirmObservation(text);
         }}
+        observation={observationText}
+        onObservationChange={setObservationText}
+        isLoading={Boolean(reportSelectedToModal && loadingObservationId === reportSelectedToModal)}
       />
 
       <ContainerButtons>

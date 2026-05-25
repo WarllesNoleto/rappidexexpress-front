@@ -1,6 +1,6 @@
 import { Modal, Typography, Box } from '@mui/material';
 import { BaseButton, BaseInput } from './styles';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const style = {
   position: 'absolute',
@@ -19,13 +19,32 @@ export interface ModalProps {
     isVisible: boolean
     handleClose: () => void
     onConfirmObservation: (text: string) => void
+    observation: string
+    onObservationChange: (value: string) => void
+    isLoading?: boolean
 }
 
-export function BaseModal({isVisible, handleClose, onConfirmObservation}: ModalProps){
-    const [observation, setModalObservation] = useState('')
+export function BaseModal({
+    isVisible,
+    handleClose,
+    onConfirmObservation,
+    observation,
+    onObservationChange,
+    isLoading = false,
+}: ModalProps){
+    const [localObservation, setLocalObservation] = useState(observation)
+
+    useEffect(() => {
+        setLocalObservation(observation)
+    }, [observation, isVisible])
+
+    useEffect(() => {
+        onObservationChange(localObservation)
+    }, [localObservation, onObservationChange])
+
     function handleNext() {
-        onConfirmObservation(observation);
-        setModalObservation('')
+        if (isLoading) return;
+        onConfirmObservation(localObservation);
     }
 
     return (
@@ -43,10 +62,12 @@ export function BaseModal({isVisible, handleClose, onConfirmObservation}: ModalP
                     type="text"
                     id="user"
                     placeholder="Opcional"
-                    value={observation}
-                    onChange={(event) => { setModalObservation(event.target.value) }}
+                    value={localObservation}
+                    onChange={(event) => { setLocalObservation(event.target.value) }}
                 />
-                <BaseButton onClick={handleNext}>Adicionar</BaseButton>
+                <BaseButton onClick={handleNext} disabled={isLoading}>
+                    {isLoading ? "Adicionando..." : "Adicionar"}
+                </BaseButton>
             </Box>
         </Modal>
     )
