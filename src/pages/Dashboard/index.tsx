@@ -80,6 +80,8 @@ type DeliveryCardProps = {
   getIfoodOrderNumber: (observation?: string) => string | null;
   getClientWhatsappMessage: (report: Report) => string | undefined;
   deliveryCode: string;
+  previewObservation: string;
+  shouldShowObservationPreview: boolean;
 };
 
 const getIfoodClientAddress = (observation?: string): string | null => {
@@ -154,6 +156,8 @@ const DeliveryCard = memo(
     getIfoodOrderNumber,
     getClientWhatsappMessage,
     deliveryCode,
+    previewObservation,
+    shouldShowObservationPreview,
   }: DeliveryCardProps) {
     const getClientVisualStatus = (delivery: Report) => {
       if (delivery.collectedAt) return "Motoboy está a caminho";
@@ -353,11 +357,12 @@ const DeliveryCard = memo(
         )}
 
         {(report.status === StatusDelivery.ARRIVED_AT_DESTINATION ||
-          report.status === StatusDelivery.AWAITING_CODE) && (
-          <ContainerInfo>
-            <p><b>Observação do pedido:</b> {report.observation?.trim() || "Sem observações"}</p>
-          </ContainerInfo>
-        )}
+          report.status === StatusDelivery.AWAITING_CODE) &&
+          shouldShowObservationPreview && (
+            <ContainerInfo>
+              <p><b>Observação do pedido:</b> {previewObservation || "Sem observações"}</p>
+            </ContainerInfo>
+          )}
 
         <OrderActions>
           {(permission === "admin" || permission === "superadmin") &&
@@ -434,6 +439,9 @@ export function Dashboard() {
     useState<string>("");
   const [observationAddedByReport, setObservationAddedByReport] = useState<
     Record<string, boolean>
+  >({});
+  const [observationPreviewByReport, setObservationPreviewByReport] = useState<
+    Record<string, string>
   >({});
 
   useEffect(() => {
@@ -790,6 +798,11 @@ export function Dashboard() {
         delete nextState[report.id];
         return nextState;
       });
+      setObservationPreviewByReport((state) => {
+        const nextState = { ...state };
+        delete nextState[report.id];
+        return nextState;
+      });
       setReportSelectedToModal("");
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao atualizar pedido.");
@@ -1074,6 +1087,11 @@ export function Dashboard() {
             ...state,
             [reportSelectedToModal]: hasObservation,
           }));
+
+          setObservationPreviewByReport((state) => ({
+            ...state,
+            [reportSelectedToModal]: text.trim(),
+          }));
         }}
       />
 
@@ -1128,6 +1146,8 @@ export function Dashboard() {
                 getIfoodOrderNumber={getIfoodOrderNumber}
                 getClientWhatsappMessage={getClientWhatsappMessage}
                 deliveryCode={deliveryCodeByReport[report.id] || ""}
+                previewObservation={observationPreviewByReport[report.id] || report.observation?.trim() || ""}
+                shouldShowObservationPreview={Boolean(observationAddedByReport[report.id])}
               />
             ))}
           </>
