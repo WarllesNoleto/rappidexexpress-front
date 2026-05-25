@@ -52,6 +52,7 @@ type DeliveryUpdateData = {
   status?: string;
   motoboyId?: string;
   observation?: string;
+  destinationObservation?: string;
   destinationObservationConfirmed?: boolean;
   deliveryCode?: string;
 };
@@ -361,7 +362,7 @@ const DeliveryCard = memo(
           report.status === StatusDelivery.AWAITING_CODE) &&
           shouldShowObservationPreview && (
             <ContainerInfo>
-              <p><b>Observação do pedido:</b> {previewObservation || "Sem observações"}</p>
+              <p><b>Observação do pedido:</b> {previewObservation || "Sem observação."}</p>
             </ContainerInfo>
           )}
 
@@ -675,13 +676,13 @@ export function Dashboard() {
     if (!reportSelectedToModal) return;
 
     const deliveryId = reportSelectedToModal;
-    const finalText = text.trim() || "Sem observação.";
+    const finalText = text.trim();
 
     try {
       startUpdatingDelivery(deliveryId);
 
       const response = await api.put(`/delivery/${deliveryId}`, {
-        observation: finalText,
+        destinationObservation: finalText || "Sem observação.",
         destinationObservationConfirmed: true,
       });
 
@@ -1135,7 +1136,7 @@ export function Dashboard() {
                 getIfoodOrderNumber={getIfoodOrderNumber}
                 getClientWhatsappMessage={getClientWhatsappMessage}
                 deliveryCode={deliveryCodeByReport[report.id] || ""}
-                previewObservation={report.observation?.trim() || ""}
+                previewObservation={report.destinationObservation?.trim() || ""}
                 shouldShowObservationPreview={Boolean(report.destinationObservationConfirmed)}
               />
             ))}

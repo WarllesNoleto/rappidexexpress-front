@@ -30,6 +30,7 @@ export interface Report {
     status: string;
     value: string;
     observation: string;
+    destinationObservation?: string;
     destinationObservationConfirmed?: boolean;
     soda: string;
     onCoursedAt: string;

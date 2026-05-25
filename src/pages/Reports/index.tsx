@@ -144,35 +144,40 @@ export function Reports() {
     }
 
     function getObservation(report: Report) {
-        const observation = report.observation?.trim()
-        const isIfoodOrder = Boolean(
-            report.isIfoodOrder || observation?.includes('Pedido iFood #')
+        const observation = report.observation?.trim() || ''
+        const destinationObservation = report.destinationObservation?.trim() || 'Sem observação.'
+        const hasIfoodText = observation.includes('Pedido iFood #') || observation.includes('Pedido iFood')
+        const isIfoodOrder = Boolean(report.isIfoodOrder || hasIfoodText)
+
+        if (!isIfoodOrder) {
+            return observation || ''
+        }
+
+        const normalizedParts = observation
+            .split('|')
+            .map(part => part.trim())
+            .filter(Boolean)
+
+        const ifoodPart = normalizedParts.find(
+            part => part.startsWith('Pedido iFood #') || part.startsWith('Pedido iFood')
         )
+        const addressPart = normalizedParts.find(part => part.startsWith('Endereço:'))
+        const clientAddressPart = report.clientAddress?.trim()
+            ? `Endereço: ${report.clientAddress.trim()}`
+            : undefined
 
-        if (isIfoodOrder && observation) {
-            const normalizedParts = observation
-                .split('|')
-                .map(part => part.trim())
-                .filter(Boolean)
+        const baseParts = [
+            ifoodPart,
+            addressPart || clientAddressPart,
+        ].filter(Boolean)
 
-            if (report.status === 'CANCELADO' || report.status === 'FINALIZADO') {
-                return normalizedParts.join(' | ')
-            }
-
-            const finalStatusParts = normalizedParts.filter(
-                part =>
-                    part.startsWith('Pedido iFood #') ||
-                    part.startsWith('Endereço:')
-            )
-
-            return finalStatusParts.join(' | ') || observation
+        if (!baseParts.length) {
+            baseParts.push('Pedido iFood importado automaticamente')
         }
 
-        if (isIfoodOrder) {
-            return 'Pedido iFood importado automaticamente pelo Developer Portal.'
-        }
+        baseParts.push(`Observação destino: ${destinationObservation}`)
 
-        return observation || ''
+        return baseParts.join(' | ')
     }
 
     useEffect(() => {
