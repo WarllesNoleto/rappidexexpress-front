@@ -404,7 +404,9 @@ function areDeliveryCardPropsEqual(prev: DeliveryCardProps, next: DeliveryCardPr
     prev.deliveryCode === next.deliveryCode &&
     prev.reportSelectedToModal === next.reportSelectedToModal &&
     prev.motoboys === next.motoboys &&
-    prev.isUpdating === next.isUpdating
+    prev.isUpdating === next.isUpdating &&
+    prev.previewObservation === next.previewObservation &&
+    prev.shouldShowObservationPreview === next.shouldShowObservationPreview
   );
 }
 
@@ -1081,6 +1083,8 @@ export function Dashboard() {
           }
 
           const trimmedText = text.trim();
+          const finalText =
+            !trimmedText || trimmedText === "Sem observação." ? "" : trimmedText;
 
           setObservationAddedByReport((state) => ({
             ...state,
@@ -1089,14 +1093,10 @@ export function Dashboard() {
 
           setObservationPreviewByReport((state) => ({
             ...state,
-            [reportSelectedToModal]:
-              trimmedText === "Sem observação." ? "" : trimmedText,
+            [reportSelectedToModal]: finalText,
           }));
 
-          setObservationPreviewByReport((state) => ({
-            ...state,
-            [reportSelectedToModal]: text.trim(),
-          }));
+          setReportSelectedToModal("");
         }}
       />
 
