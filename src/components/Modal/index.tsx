@@ -18,20 +18,14 @@ const style = {
 export interface ModalProps {
     isVisible: boolean
     handleClose: () => void
-    setObservation: (text: string) => void
+    onConfirmObservation: (text: string) => void
 }
 
-export function BaseModal({isVisible, handleClose, setObservation}: ModalProps){
+export function BaseModal({isVisible, handleClose, onConfirmObservation}: ModalProps){
     const [observation, setModalObservation] = useState('')
     function handleNext() {
-        if(!observation) {
-            setObservation('Sem observação.')
-        } else {
-            setObservation(observation);
-        }
-
+        onConfirmObservation(observation);
         setModalObservation('')
-        handleClose();
     }
 
     return (

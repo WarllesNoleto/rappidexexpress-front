@@ -20,6 +20,7 @@ export interface Report {
     status: string;
     value: string;
     observation: string;
+    destinationObservationConfirmed?: boolean;
     soda: string;
     onCoursedAt: string;
     arrivedAtStoreAt?: string;

@@ -52,6 +52,7 @@ type DeliveryUpdateData = {
   status?: string;
   motoboyId?: string;
   observation?: string;
+  destinationObservationConfirmed?: boolean;
   deliveryCode?: string;
 };
 
@@ -74,7 +75,7 @@ type DeliveryCardProps = {
   onNextStep: (report: Report) => void;
   onDelete: (report: Report) => void;
   onDeliveryCodeChange: (reportId: string, value: string) => void;
-  getButtonText: (currentStatus: string, id: string, report?: Report) => string;
+  getButtonText: (currentStatus: string, report?: Report) => string;
   getHours: (date: string) => string;
   formatPhoneNumber: (phone: string) => string;
   getIfoodOrderNumber: (observation?: string) => string | null;
@@ -379,7 +380,7 @@ const DeliveryCard = memo(
 
           {permission !== "shopkeeper" && (
             <OrderButton typebutton={true} onClick={() => onNextStep(report)}>
-              {getButtonText(report.status, report.id, report)}
+              {getButtonText(report.status, report)}
             </OrderButton>
           )}
 
@@ -436,15 +437,8 @@ export function Dashboard() {
   const didFirstLoadRef = useRef(false);
 
   const [isVisible, setIsVisible] = useState<boolean>(false);
-  const [observation, setObservation] = useState<string>("");
   const [reportSelectedToModal, setReportSelectedToModal] =
     useState<string>("");
-  const [observationAddedByReport, setObservationAddedByReport] = useState<
-    Record<string, boolean>
-  >({});
-  const [observationPreviewByReport, setObservationPreviewByReport] = useState<
-    Record<string, string>
-  >({});
 
   useEffect(() => {
     api.defaults.headers.common.Authorization = `Bearer ${token}`;
@@ -675,16 +669,38 @@ export function Dashboard() {
     }
   }, []);
 
-  function getObservationPatch() {
-    const trimmedObservation = observation.trim();
 
-    if (!trimmedObservation || trimmedObservation === "Sem observação.") {
-      return {};
+
+  async function handleConfirmObservation(text: string) {
+    if (!reportSelectedToModal) return;
+
+    const deliveryId = reportSelectedToModal;
+    const finalText = text.trim() || "Sem observação.";
+
+    try {
+      startUpdatingDelivery(deliveryId);
+
+      const response = await api.put(`/delivery/${deliveryId}`, {
+        observation: finalText,
+        destinationObservationConfirmed: true,
+      });
+
+      const updatedReport = normalizeDeliveryResponse(response.data);
+
+      if (updatedReport) {
+        updateReportInListLocally(updatedReport);
+      } else {
+        await refreshDashboard(false);
+      }
+
+      setReportSelectedToModal("");
+      handleModal();
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Erro ao salvar observação.");
+    } finally {
+      stopUpdatingDelivery(deliveryId);
     }
-
-    return { observation: trimmedObservation };
   }
-
   async function handlerNextStep(report: Report) {
     if (isDeliveryUpdating(report.id)) {
       return;
@@ -725,7 +741,7 @@ export function Dashboard() {
       report.status === StatusDelivery.ARRIVED_AT_DESTINATION ||
       report.status === StatusDelivery.AWAITING_CODE
     ) {
-      if (!observationAddedByReport[report.id]) {
+      if (!report.destinationObservationConfirmed) {
         setReportSelectedToModal(report.id);
         handleModal();
         return;
@@ -750,7 +766,6 @@ export function Dashboard() {
 
       data = {
         status: newStatus,
-        ...getObservationPatch(),
         deliveryCode,
       };
     }
@@ -789,18 +804,7 @@ export function Dashboard() {
       setAssignedCount((state) => Math.max(0, state + delta.assigned));
       updateReportInListLocally(updatedReport);
       alert(`Solicitação avançada para o passo ${newStatus}`);
-      setObservation("");
       setDeliveryCodeByReport((state) => {
-        const nextState = { ...state };
-        delete nextState[report.id];
-        return nextState;
-      });
-      setObservationAddedByReport((state) => {
-        const nextState = { ...state };
-        delete nextState[report.id];
-        return nextState;
-      });
-      setObservationPreviewByReport((state) => {
         const nextState = { ...state };
         delete nextState[report.id];
         return nextState;
@@ -901,7 +905,7 @@ export function Dashboard() {
     }
   }
 
-  function getButtonText(currentStatus: string, id: string, report?: Report) {
+  function getButtonText(currentStatus: string, report?: Report) {
     if (StatusDelivery.PENDING === currentStatus) {
       return "Atribuir";
     }
@@ -922,7 +926,7 @@ export function Dashboard() {
       StatusDelivery.ARRIVED_AT_DESTINATION === currentStatus ||
       StatusDelivery.AWAITING_CODE === currentStatus
     ) {
-      if (!observationAddedByReport[id]) {
+      if (!report?.destinationObservationConfirmed) {
         return "Observação";
       }
 
@@ -1075,28 +1079,8 @@ export function Dashboard() {
       <BaseModal
         isVisible={isVisible}
         handleClose={handleModal}
-        setObservation={(text) => {
-          setObservation(text);
-
-          if (!reportSelectedToModal) {
-            return;
-          }
-
-          const trimmedText = text.trim();
-          const finalText =
-            !trimmedText || trimmedText === "Sem observação." ? "" : trimmedText;
-
-          setObservationAddedByReport((state) => ({
-            ...state,
-            [reportSelectedToModal]: true,
-          }));
-
-          setObservationPreviewByReport((state) => ({
-            ...state,
-            [reportSelectedToModal]: finalText,
-          }));
-
-          setReportSelectedToModal("");
+        onConfirmObservation={(text) => {
+          void handleConfirmObservation(text);
         }}
       />
 
@@ -1151,8 +1135,8 @@ export function Dashboard() {
                 getIfoodOrderNumber={getIfoodOrderNumber}
                 getClientWhatsappMessage={getClientWhatsappMessage}
                 deliveryCode={deliveryCodeByReport[report.id] || ""}
-                previewObservation={observationPreviewByReport[report.id] || report.observation?.trim() || ""}
-                shouldShowObservationPreview={Boolean(observationAddedByReport[report.id])}
+                previewObservation={report.observation?.trim() || ""}
+                shouldShowObservationPreview={Boolean(report.destinationObservationConfirmed)}
               />
             ))}
           </>
