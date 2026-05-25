@@ -191,11 +191,11 @@ const DeliveryCard = memo(
       (report as any).ifoodDisplayId ||
       (report as any).ifoodOrderId ||
       null;
-    const ifoodClientLocationLink = getIfoodClientLocationLink(
+    const ifoodClientLocationLink = report.addressMapsUrl || getIfoodClientLocationLink(
       report.observation,
       report.clientLocation,
     );
-    const ifoodClientAddress = getIfoodClientAddress(report.observation);
+    const ifoodClientAddress = report.clientAddress || getIfoodClientAddress(report.observation);
     const googleMapsAddressLink = getGoogleMapsLinkFromAddress(ifoodClientAddress);
     const motoboySelectId = `motoboy-${report.id}`;
     const shouldShowDeliveryCodeInput =
@@ -270,7 +270,7 @@ const DeliveryCard = memo(
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <p>Localização cliente</p> <MapPin size={18} />
+                <p>Ver no mapa</p> <MapPin size={18} />
               </Link>
             )}
             {statusFilter !== StatusDelivery.PENDING && !ifoodClientLocationLink && googleMapsAddressLink && (
@@ -279,7 +279,7 @@ const DeliveryCard = memo(
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <p>Localização cliente (Google Maps)</p> <MapPin size={18} />
+                <p>Ver no mapa</p> <MapPin size={18} />
               </Link>
             )}
           </div>

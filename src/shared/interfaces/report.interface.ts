@@ -2,6 +2,16 @@ export interface Report {
     clientName: string;
     clientPhone: string;
     clientLocation?: string;
+    clientAddress?: string;
+    addressComplement?: string;
+    addressReference?: string;
+    addressNeighborhood?: string;
+    addressCity?: string;
+    addressState?: string;
+    addressZipCode?: string;
+    addressLatitude?: number;
+    addressLongitude?: number;
+    addressMapsUrl?: string;
     createdAt: string;
     createdBy: string;
     establishmentId: string;
