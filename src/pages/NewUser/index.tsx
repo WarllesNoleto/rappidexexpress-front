@@ -75,6 +75,19 @@ export function NewUser() {
 
   const allowCitySelection = permission === "superadmin";
 
+  function resolveLegacyMerchantId(merchantId: string, merchants: IfoodMerchantForm[] = []) {
+    const normalizedLegacyMerchantId = String(merchantId || "").trim();
+    if (normalizedLegacyMerchantId) {
+      return normalizedLegacyMerchantId;
+    }
+
+    const firstActiveMerchantId = merchants
+      .find((merchant) => merchant?.enabled !== false && String(merchant?.merchantId || "").trim())
+      ?.merchantId;
+
+    return String(firstActiveMerchantId || "").trim();
+  }
+
   async function handleCreate(data: ProfileFormData) {
     if (loading) {
       return;
@@ -92,7 +105,6 @@ export function NewUser() {
       ? selectedCityId
       : loggedUserCityId;
     const useIfoodIntegration = Boolean(data.useIfoodIntegration);
-    const ifoodMerchantId = (data.ifoodMerchantId || "").trim();
     const usesExternalIfoodPdv = useIfoodIntegration
       ? Boolean(data.usesExternalIfoodPdv)
       : false;
@@ -104,6 +116,7 @@ export function NewUser() {
         pickupAddress: String(merchant.pickupAddress || "").trim(),
       }))
       .filter((merchant) => merchant.merchantId);
+    const ifoodMerchantId = resolveLegacyMerchantId(data.ifoodMerchantId || "", normalizedMerchants);
 
     if (useIfoodIntegration && !ifoodMerchantId && normalizedMerchants.length === 0) {
       alert("Para integração iFood, preencha o merchantId.");
@@ -203,10 +216,10 @@ export function NewUser() {
         cityId: cityIdToSubmit,
         useIfoodIntegration: Boolean(useIfoodIntegration),
         usesExternalIfoodPdv: Boolean(useIfoodIntegration) && Boolean(usesExternalIfoodPdv),
-        ifoodMerchantId: (ifoodMerchantId || "").trim(),
+        ifoodMerchantId: resolveLegacyMerchantId(ifoodMerchantId || "", normalizedMerchants),
         ifoodMerchants: normalizedMerchants,
       });
-      if (useIfoodIntegration && (ifoodMerchantId || "").trim()) {
+      if (useIfoodIntegration && resolveLegacyMerchantId(ifoodMerchantId || "", normalizedMerchants)) {
         await api.post(`/ifood/sync-company/${userId}`).catch(() => undefined);
         alert(
           "Integração iFood salva. Os pedidos podem levar até 1 minuto para aparecer após ficarem prontos. Sincronização inicial iniciada.",
@@ -547,7 +560,11 @@ export function NewUser() {
                         <BaseButton type="button" onClick={() => setIfoodMerchants((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}>Remover loja</BaseButton>
                       </div>
                     ))}
-                    <BaseButton type="button" onClick={() => setIfoodMerchants((prev) => [...prev, { merchantId: "", name: "", enabled: true, pickupAddress: "" }])}>Adicionar loja iFood</BaseButton>
+                    <BaseButton type="button" onClick={() => {
+                      const updatedMerchants = [...ifoodMerchants, { merchantId: "", name: "", enabled: true, pickupAddress: "" }];
+                      setIfoodMerchants(updatedMerchants);
+                      setValue("ifoodMerchantId", resolveLegacyMerchantId(watch("ifoodMerchantId") || "", updatedMerchants));
+                    }}>Adicionar loja iFood</BaseButton>
                   </div>
 
                 </>

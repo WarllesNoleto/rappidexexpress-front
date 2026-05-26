@@ -133,12 +133,24 @@ export function IfoodClients() {
     );
   }
 
+  function resolveLegacyMerchantId(merchantId: string, merchants: User['ifoodMerchants'] = []) {
+    const normalizedLegacyMerchantId = String(merchantId || '').trim();
+    if (normalizedLegacyMerchantId) {
+      return normalizedLegacyMerchantId;
+    }
+
+    const firstActiveMerchantId = (Array.isArray(merchants) ? merchants : [])
+      .find((merchant) => merchant?.enabled !== false && String(merchant?.merchantId || '').trim())
+      ?.merchantId;
+
+    return String(firstActiveMerchantId || '').trim();
+  }
+
   async function handleSave(shopkeeper: User) {
     if (savingUser) {
       return;
     }
 
-    const merchantId = (shopkeeper.ifoodMerchantId || '').trim();
     const merchants = Array.isArray(shopkeeper.ifoodMerchants)
       ? shopkeeper.ifoodMerchants
           .map((merchant) => ({
@@ -149,6 +161,7 @@ export function IfoodClients() {
           }))
           .filter((merchant) => merchant.merchantId)
       : [];
+    const merchantId = resolveLegacyMerchantId(shopkeeper.ifoodMerchantId || '', merchants);
     if (shopkeeper.useIfoodIntegration && !merchantId && merchants.length === 0) {
       alert('Informe o Merchant ID para ativar a integração iFood.');
       return;
@@ -377,7 +390,16 @@ export function IfoodClients() {
                       <CreditButton type="button" onClick={() => updateLocalUser(shopkeeper.id, { ifoodMerchants: (shopkeeper.ifoodMerchants || []).filter((_, itemIndex) => itemIndex !== index) })}>Remover loja</CreditButton>
                     </div>
                   ))}
-                  <CreditButton type="button" disabled={!shopkeeper.useIfoodIntegration} onClick={() => updateLocalUser(shopkeeper.id, { ifoodMerchants: [...(shopkeeper.ifoodMerchants || []), { merchantId: '', name: '', enabled: true, pickupAddress: '' }] })}>Adicionar loja iFood</CreditButton>
+                  <CreditButton type="button" disabled={!shopkeeper.useIfoodIntegration} onClick={() => {
+                    const updatedMerchants = [
+                      ...(shopkeeper.ifoodMerchants || []),
+                      { merchantId: '', name: '', enabled: true, pickupAddress: '' },
+                    ];
+                    updateLocalUser(shopkeeper.id, {
+                      ifoodMerchants: updatedMerchants,
+                      ifoodMerchantId: resolveLegacyMerchantId(shopkeeper.ifoodMerchantId || '', updatedMerchants),
+                    });
+                  }}>Adicionar loja iFood</CreditButton>
                 </div>
 
                 <CreditSummary>
