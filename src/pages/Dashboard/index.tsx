@@ -83,6 +83,7 @@ type DeliveryCardProps = {
   deliveryCode: string;
   previewObservation: string;
   shouldShowObservationPreview: boolean;
+  canManageReleaseOrder: boolean;
 };
 
 const getIfoodClientAddress = (observation?: string): string | null => {
@@ -159,6 +160,7 @@ const DeliveryCard = memo(
     deliveryCode,
     previewObservation,
     shouldShowObservationPreview,
+    canManageReleaseOrder,
   }: DeliveryCardProps) {
     const getClientVisualStatus = (delivery: Report) => {
       if (delivery.collectedAt) return "Motoboy está a caminho";
@@ -322,7 +324,7 @@ const DeliveryCard = memo(
           {report.finishedAt && <p>Finalizado: {getHours(report.finishedAt)}</p>}
         </ContainerInfo>
 
-        {permission !== "shopkeeper" && (
+        {canManageReleaseOrder && (
           <SelectContainer>
             <label htmlFor={motoboySelectId}>Motoboy:</label>
             <select
@@ -341,7 +343,7 @@ const DeliveryCard = memo(
           </SelectContainer>
         )}
 
-        {shouldShowDeliveryCodeInput && permission !== "shopkeeper" && (
+        {shouldShowDeliveryCodeInput && canManageReleaseOrder && (
           <SelectContainer>
             <label htmlFor={`delivery-code-${report.id}`}>
               Código de entrega iFood:
@@ -366,7 +368,7 @@ const DeliveryCard = memo(
           )}
 
         <OrderActions>
-          {(permission === "admin" || permission === "superadmin") &&
+          {canManageReleaseOrder &&
             report.status !== StatusDelivery.PENDING && (
               <>
                 <OrderButton typebutton={true} onClick={() => onSave(report)}>
@@ -378,7 +380,7 @@ const DeliveryCard = memo(
               </>
             )}
 
-          {permission !== "shopkeeper" && (
+          {canManageReleaseOrder && (
             <OrderButton typebutton={true} onClick={() => onNextStep(report)}>
               {getButtonText(report.status, report)}
             </OrderButton>
@@ -405,6 +407,7 @@ function areDeliveryCardPropsEqual(prev: DeliveryCardProps, next: DeliveryCardPr
     prev.deliveryCode === next.deliveryCode &&
     prev.motoboys === next.motoboys &&
     prev.isUpdating === next.isUpdating &&
+    prev.canManageReleaseOrder === next.canManageReleaseOrder &&
     prev.previewObservation === next.previewObservation &&
     prev.shouldShowObservationPreview === next.shouldShowObservationPreview
   );
@@ -433,6 +436,9 @@ export function Dashboard() {
   >({});
   const [currentCityId, setCurrentCityId] = useState<string>("");
   const [canViewReleaseTab, setCanViewReleaseTab] = useState<boolean>(
+    permission === UserType.ADMIN || permission === UserType.SUPERADMIN,
+  );
+  const [canManageReleaseOrder, setCanManageReleaseOrder] = useState<boolean>(
     permission === UserType.ADMIN || permission === UserType.SUPERADMIN,
   );
   const reloadTimeoutRef = useRef<number | null>(null);
@@ -692,27 +698,44 @@ export function Dashboard() {
 
       setCurrentCityId(currentUser.cityId ?? "");
 
+      const currentPermission = String(currentUser.permission || currentUser.type || permission || "").toLowerCase();
+
       const isAdminOrSuperadmin =
-        permission === UserType.ADMIN || permission === UserType.SUPERADMIN;
+        currentPermission === UserType.ADMIN ||
+        currentPermission === UserType.SUPERADMIN;
+      const isShopkeeper =
+        currentPermission === UserType.SHOPKEEPER ||
+        currentPermission === UserType.SHOPKEEPERADMIN;
 
       const ifoodMerchantId = String(currentUser.ifoodMerchantId || "").trim();
       const aiqfomeStoreId = String(currentUser.aiqfomeStoreId || "").trim();
+      const establishmentIfoodMerchantId = String(
+        currentUser.establishment?.ifoodMerchantId ||
+          currentUser.selectedEstablishment?.ifoodMerchantId ||
+          currentUser.company?.ifoodMerchantId ||
+          "",
+      ).trim();
 
       const hasIfoodIntegration =
-        (Boolean(currentUser.ifoodEnabled) || Boolean(currentUser.useIfoodIntegration)) &&
-        Boolean(ifoodMerchantId);
+        (Boolean(currentUser.ifoodEnabled) ||
+          Boolean(currentUser.useIfoodIntegration) ||
+          Boolean(currentUser.establishment?.ifoodEnabled) ||
+          Boolean(currentUser.selectedEstablishment?.ifoodEnabled) ||
+          Boolean(currentUser.company?.ifoodEnabled)) &&
+        Boolean(ifoodMerchantId || establishmentIfoodMerchantId);
 
       const hasAiqfomeIntegration =
         Boolean(currentUser.aiqfomeEnabled) &&
         Boolean(aiqfomeStoreId);
 
       const hasActiveIntegration = hasIfoodIntegration || hasAiqfomeIntegration;
+      const canManageByIfood = isShopkeeper && hasIfoodIntegration;
+      const nextCanManageReleaseOrder = isAdminOrSuperadmin || canManageByIfood;
 
       setCanViewReleaseTab(
-        isAdminOrSuperadmin ||
-          ((permission === UserType.SHOPKEEPER || permission === UserType.SHOPKEEPERADMIN) &&
-            hasActiveIntegration),
+        isAdminOrSuperadmin || (isShopkeeper && hasActiveIntegration),
       );
+      setCanManageReleaseOrder(nextCanManageReleaseOrder);
     } catch (error) {
       console.error("Erro ao carregar usuário atual:", error);
     }
@@ -1227,6 +1250,7 @@ export function Dashboard() {
                 deliveryCode={deliveryCodeByReport[report.id] || ""}
                 previewObservation={report.destinationObservation?.trim() || ""}
                 shouldShowObservationPreview={Boolean(report.destinationObservationConfirmed)}
+                canManageReleaseOrder={canManageReleaseOrder}
               />
             ))}
           </>
