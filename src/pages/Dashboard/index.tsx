@@ -66,6 +66,7 @@ type DeliveryCardProps = {
   report: Report;
   statusFilter: string;
   permission: string | null;
+  isCurrentUserMotoboy: boolean;
   selectedMotoboy: string;
   motoboys: Motoboy[];
   isUpdating: boolean;
@@ -159,6 +160,7 @@ const DeliveryCard = memo(
     report,
     statusFilter,
     permission,
+    isCurrentUserMotoboy,
     selectedMotoboy,
     motoboys,
     isUpdating,
@@ -220,7 +222,7 @@ const DeliveryCard = memo(
       isIfoodOrder &&
       (report.status === StatusDelivery.ARRIVED_AT_DESTINATION ||
         report.status === StatusDelivery.AWAITING_CODE);
-    const isMotoboy = permission === UserType.MOTOBOY;
+    const isMotoboy = isCurrentUserMotoboy;
 
     const canMotoboyAdvanceDelivery =
       isMotoboy &&
@@ -418,7 +420,7 @@ const DeliveryCard = memo(
             </OrderButton>
           )}
 
-          {permission !== "motoboy" && report.status === StatusDelivery.PENDING && (
+          {!isMotoboy && report.status === StatusDelivery.PENDING && (
             <OrderButton typebutton={false} onClick={() => onDelete(report)}>
               Apagar
             </OrderButton>
@@ -435,6 +437,7 @@ function areDeliveryCardPropsEqual(prev: DeliveryCardProps, next: DeliveryCardPr
     prev.report === next.report &&
     prev.statusFilter === next.statusFilter &&
     prev.permission === next.permission &&
+    prev.isCurrentUserMotoboy === next.isCurrentUserMotoboy &&
     prev.selectedMotoboy === next.selectedMotoboy &&
     prev.deliveryCode === next.deliveryCode &&
     prev.motoboys === next.motoboys &&
@@ -467,6 +470,7 @@ export function Dashboard() {
     Record<string, string>
   >({});
   const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [isCurrentUserMotoboy, setIsCurrentUserMotoboy] = useState<boolean>(permission === UserType.MOTOBOY);
   const [currentCityId, setCurrentCityId] = useState<string>("");
   const [canViewReleaseTab, setCanViewReleaseTab] = useState<boolean>(
     permission === UserType.ADMIN || permission === UserType.SUPERADMIN,
@@ -740,6 +744,12 @@ export function Dashboard() {
         currentType === UserType.SUPERADMIN ||
         currentPermission === UserType.ADMIN ||
         currentPermission === UserType.SUPERADMIN;
+
+      const isMotoboyUser =
+        currentType === UserType.MOTOBOY ||
+        currentPermission === UserType.MOTOBOY;
+
+      setIsCurrentUserMotoboy(isMotoboyUser);
 
       const isShopkeeper =
         currentType === UserType.SHOPKEEPER ||
@@ -1090,7 +1100,7 @@ export function Dashboard() {
   }
 
   function getSelectedMotoboy(report: Report) {
-    if (permission === UserType.MOTOBOY) {
+    if (isCurrentUserMotoboy) {
       return currentUserId || report.motoboyId || "";
     }
 
@@ -1268,6 +1278,7 @@ export function Dashboard() {
                 report={report}
                 statusFilter={status}
                 permission={permission}
+                isCurrentUserMotoboy={isCurrentUserMotoboy}
                 selectedMotoboy={getSelectedMotoboy(report)}
                 motoboys={motoboys}
                 isUpdating={isDeliveryUpdating(report.id)}
