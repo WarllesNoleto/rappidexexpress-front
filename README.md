@@ -28,3 +28,13 @@ export default {
 - Replace `plugin:@typescript-eslint/recommended` to `plugin:@typescript-eslint/recommended-type-checked` or `plugin:@typescript-eslint/strict-type-checked`
 - Optionally add `plugin:@typescript-eslint/stylistic-type-checked`
 - Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and add `plugin:react/recommended` & `plugin:react/jsx-runtime` to the `extends` list
+
+## Lint
+
+```bash
+# execute from frontend folder (uses local ESLint v8 + .eslintrc)
+$ cd rappidexexpress-front
+$ npm run lint
+```
+
+> Nota: executar `npx eslint` na raiz do monorepo pode chamar uma versão global (ex.: ESLint v10) e mostrar aviso de `eslint.config.*`, sem impactar build/execução da aplicação.
