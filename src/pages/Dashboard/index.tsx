@@ -209,6 +209,7 @@ const DeliveryCard = memo(
     const canMotoboyAdvanceDelivery =
       isMotoboy &&
       [
+        StatusDelivery.PENDING,
         StatusDelivery.ONCOURSE,
         StatusDelivery.ARRIVED_AT_STORE,
         StatusDelivery.COLLECTED,
@@ -449,6 +450,7 @@ export function Dashboard() {
   const [deliveryCodeByReport, setDeliveryCodeByReport] = useState<
     Record<string, string>
   >({});
+  const [currentUserId, setCurrentUserId] = useState<string>("");
   const [currentCityId, setCurrentCityId] = useState<string>("");
   const [canViewReleaseTab, setCanViewReleaseTab] = useState<boolean>(
     permission === UserType.ADMIN || permission === UserType.SUPERADMIN,
@@ -711,6 +713,7 @@ export function Dashboard() {
       const response = await api.get("/user/myself");
       const currentUser = response.data?.data ?? response.data ?? {};
 
+      setCurrentUserId(currentUser.id ?? "");
       setCurrentCityId(currentUser.cityId ?? "");
 
       const currentPermission = String(currentUser.permission || currentUser.type || permission || "").toLowerCase();
@@ -1074,6 +1077,10 @@ export function Dashboard() {
   }
 
   function getSelectedMotoboy(report: Report) {
+    if (permission === UserType.MOTOBOY) {
+      return currentUserId || report.motoboyId || "";
+    }
+
     return (
       selectedMotoboyByReport[report.id] ||
       report.motoboyId ||
