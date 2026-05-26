@@ -67,7 +67,6 @@ type DeliveryCardProps = {
   statusFilter: string;
   permission: string | null;
   selectedMotoboy: string;
-  reportSelectedToModal: string;
   motoboys: Motoboy[];
   isUpdating: boolean;
   onSelectMotoboy: (reportId: string, motoboyId: string) => void;
@@ -404,7 +403,6 @@ function areDeliveryCardPropsEqual(prev: DeliveryCardProps, next: DeliveryCardPr
     prev.permission === next.permission &&
     prev.selectedMotoboy === next.selectedMotoboy &&
     prev.deliveryCode === next.deliveryCode &&
-    prev.reportSelectedToModal === next.reportSelectedToModal &&
     prev.motoboys === next.motoboys &&
     prev.isUpdating === next.isUpdating &&
     prev.previewObservation === next.previewObservation &&
@@ -422,6 +420,7 @@ export function Dashboard() {
   const [motoboys, setMotoboys] = useState<Motoboy[]>([]);
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [assignedCount, setAssignedCount] = useState<number>(0);
+  const [waitingReleaseCount, setWaitingReleaseCount] = useState<number>(0);
   const [updatingDeliveryIds, setUpdatingDeliveryIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -433,22 +432,39 @@ export function Dashboard() {
     Record<string, string>
   >({});
   const [currentCityId, setCurrentCityId] = useState<string>("");
+  const [canViewReleaseTab, setCanViewReleaseTab] = useState<boolean>(
+    permission === UserType.ADMIN || permission === UserType.SUPERADMIN,
+  );
   const reloadTimeoutRef = useRef<number | null>(null);
   const refreshRequestIdRef = useRef(0);
   const didFirstLoadRef = useRef(false);
 
-  const [isVisible, setIsVisible] = useState<boolean>(false);
-  const [reportSelectedToModal, setReportSelectedToModal] =
-    useState<string>("");
-  const [observationText, setObservationText] = useState<string>("");
-  const [loadingObservationId, setLoadingObservationId] = useState<string | null>(null);
+  const [observationModalDeliveryId, setObservationModalDeliveryId] = useState<string | null>(null);
+  const [observationTextByDeliveryId, setObservationTextByDeliveryId] = useState<Record<string, string>>({});
+  const [observationSavingId, setObservationSavingId] = useState<string | null>(null);
 
   useEffect(() => {
     api.defaults.headers.common.Authorization = `Bearer ${token}`;
   }, [token]);
 
-  function handleModal() {
-    setIsVisible((state) => !state);
+  function openObservationModal(deliveryId: string, initialText = "") {
+    setObservationModalDeliveryId(deliveryId);
+    setObservationTextByDeliveryId((state) => ({
+      ...state,
+      [deliveryId]: state[deliveryId] ?? initialText,
+    }));
+  }
+
+  function closeObservationModal() {
+    setObservationModalDeliveryId(null);
+  }
+
+  function clearObservationText(deliveryId: string) {
+    setObservationTextByDeliveryId((state) => {
+      const next = { ...state };
+      delete next[deliveryId];
+      return next;
+    });
   }
 
   function getDateValue(date?: string) {
@@ -520,13 +536,16 @@ export function Dashboard() {
     if (!report) return false;
 
     const statusValue = report.status;
-    const hasMotoboy = Boolean(report.motoboyId);
     const isActiveDelivery = report.isActive !== false;
-    const isFinishedOrCanceled =
-      statusValue === StatusDelivery.FINISHED ||
-      statusValue === StatusDelivery.CANCELED;
+    const assignedStatuses: StatusDelivery[] = [
+      StatusDelivery.ONCOURSE,
+      StatusDelivery.ARRIVED_AT_STORE,
+      StatusDelivery.COLLECTED,
+      StatusDelivery.ARRIVED_AT_DESTINATION,
+      StatusDelivery.AWAITING_CODE,
+    ];
 
-    return hasMotoboy && isActiveDelivery && !isFinishedOrCanceled;
+    return isActiveDelivery && Boolean(statusValue && assignedStatuses.includes(statusValue as StatusDelivery));
   }
 
   function getCountDelta(
@@ -618,10 +637,13 @@ export function Dashboard() {
           : [];
         const nextPendingCount = Number(countsResponse.data?.pending) || 0;
         const nextAssignedCount = Number(countsResponse.data?.assigned) || 0;
+        const nextWaitingReleaseCount =
+          Number(countsResponse.data?.waitingRelease) || 0;
 
         setReports(rawReports);
         setPendingCount(nextPendingCount);
         setAssignedCount(nextAssignedCount);
+        setWaitingReleaseCount(nextWaitingReleaseCount);
       } catch (error: any) {
         if (requestId !== refreshRequestIdRef.current) {
           return;
@@ -666,23 +688,46 @@ export function Dashboard() {
   const getMyself = useCallback(async () => {
     try {
       const response = await api.get("/user/myself");
-      setCurrentCityId(response.data?.cityId ?? "");
+      const currentUser = response.data?.data ?? response.data ?? {};
+
+      setCurrentCityId(currentUser.cityId ?? "");
+
+      const isAdminOrSuperadmin =
+        permission === UserType.ADMIN || permission === UserType.SUPERADMIN;
+
+      const ifoodMerchantId = String(currentUser.ifoodMerchantId || "").trim();
+      const aiqfomeStoreId = String(currentUser.aiqfomeStoreId || "").trim();
+
+      const hasIfoodIntegration =
+        (Boolean(currentUser.ifoodEnabled) || Boolean(currentUser.useIfoodIntegration)) &&
+        Boolean(ifoodMerchantId);
+
+      const hasAiqfomeIntegration =
+        Boolean(currentUser.aiqfomeEnabled) &&
+        Boolean(aiqfomeStoreId);
+
+      const hasActiveIntegration = hasIfoodIntegration || hasAiqfomeIntegration;
+
+      setCanViewReleaseTab(
+        isAdminOrSuperadmin ||
+          ((permission === UserType.SHOPKEEPER || permission === UserType.SHOPKEEPERADMIN) &&
+            hasActiveIntegration),
+      );
     } catch (error) {
       console.error("Erro ao carregar usuário atual:", error);
     }
-  }, []);
+  }, [permission]);
 
 
 
-  async function handleConfirmObservation(text: string) {
-    if (!reportSelectedToModal) return;
+  async function handleConfirmObservation() {
+    if (!observationModalDeliveryId) return;
 
-    const deliveryId = reportSelectedToModal;
-    const finalText = text.trim();
+    const deliveryId = observationModalDeliveryId;
+    const finalText = (observationTextByDeliveryId[deliveryId] || "").trim();
 
     try {
-      setLoadingObservationId(deliveryId);
-      startUpdatingDelivery(deliveryId);
+      setObservationSavingId(deliveryId);
 
       const response = await api.put(`/delivery/${deliveryId}`, {
         destinationObservation: finalText || "Sem observação.",
@@ -697,14 +742,12 @@ export function Dashboard() {
         await refreshDashboard(false);
       }
 
-      setObservationText("");
-      setReportSelectedToModal("");
-      handleModal();
+      closeObservationModal();
+      clearObservationText(deliveryId);
     } catch (error: any) {
-      alert(error.response?.data?.message || "Não foi possível adicionar a observação.");
+      alert(error.response?.data?.message || "Erro ao salvar observação.");
     } finally {
-      setLoadingObservationId(null);
-      stopUpdatingDelivery(deliveryId);
+      setObservationSavingId(null);
     }
   }
   async function handlerNextStep(report: Report) {
@@ -712,10 +755,23 @@ export function Dashboard() {
       return;
     }
 
-    const selectedMotoboy = getSelectedMotoboy(report);
+    const selectedMotoboy = getSelectedMotoboy(report)?.trim();
 
     let data: DeliveryUpdateData | null = null;
     let newStatus = "";
+
+    if (report.status === StatusDelivery.AWAITING_RELEASE) {
+      const motoboyId =
+        selectedMotoboyByReport[report.id] ||
+        report.motoboyId ||
+        "";
+
+      await api.put(
+        `/delivery/${report.id}/release`,
+        motoboyId ? { motoboyId } : {},
+      );
+      return refreshDashboard(false);
+    }
 
     if (report.status === StatusDelivery.PENDING) {
       if (!selectedMotoboy) {
@@ -748,9 +804,7 @@ export function Dashboard() {
       report.status === StatusDelivery.AWAITING_CODE
     ) {
       if (!report.destinationObservationConfirmed) {
-        setObservationText(report.destinationObservation || "");
-        setReportSelectedToModal(report.id);
-        handleModal();
+        openObservationModal(report.id, report.destinationObservation?.trim() || "");
         return;
       }
 
@@ -816,7 +870,6 @@ export function Dashboard() {
         delete nextState[report.id];
         return nextState;
       });
-      setReportSelectedToModal("");
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao atualizar pedido.");
     } finally {
@@ -829,7 +882,7 @@ export function Dashboard() {
       return;
     }
 
-    const selectedMotoboy = getSelectedMotoboy(report);
+    const selectedMotoboy = getSelectedMotoboy(report)?.trim();
 
     if (!selectedMotoboy) {
       alert("Selecione o motoboy");
@@ -913,6 +966,9 @@ export function Dashboard() {
   }
 
   function getButtonText(currentStatus: string, report?: Report) {
+    if (StatusDelivery.AWAITING_RELEASE === currentStatus) {
+      return "Liberar produto";
+    }
     if (StatusDelivery.PENDING === currentStatus) {
       return "Atribuir";
     }
@@ -1045,6 +1101,12 @@ export function Dashboard() {
   }, [getMyself]);
 
   useEffect(() => {
+    if (!canViewReleaseTab && status === StatusDelivery.AWAITING_RELEASE) {
+      setStatus(StatusDelivery.PENDING);
+    }
+  }, [canViewReleaseTab, status]);
+
+  useEffect(() => {
     if (!currentCityId) return;
 
     const socket = io(SOCKET_URL, {
@@ -1084,17 +1146,33 @@ export function Dashboard() {
   return (
     <Container>
       <BaseModal
-        isVisible={isVisible}
-        handleClose={handleModal}
-        onConfirmObservation={(text) => {
-          void handleConfirmObservation(text);
+        isVisible={Boolean(observationModalDeliveryId)}
+        handleClose={closeObservationModal}
+        observation={observationModalDeliveryId ? (observationTextByDeliveryId[observationModalDeliveryId] || "") : ""}
+        isSaving={Boolean(observationModalDeliveryId && observationSavingId === observationModalDeliveryId)}
+        onObservationChange={(text) => {
+          if (!observationModalDeliveryId) return;
+          setObservationTextByDeliveryId((state) => ({
+            ...state,
+            [observationModalDeliveryId]: text,
+          }));
         }}
-        observation={observationText}
-        onObservationChange={setObservationText}
-        isLoading={Boolean(reportSelectedToModal && loadingObservationId === reportSelectedToModal)}
+        onConfirmObservation={() => {
+          void handleConfirmObservation();
+        }}
       />
 
       <ContainerButtons>
+        {canViewReleaseTab && (
+          <BaseButton
+            typeReport={status === StatusDelivery.AWAITING_RELEASE}
+            onClick={() => setStatus(StatusDelivery.AWAITING_RELEASE)}
+          >
+            Aguardando liberação
+            <Flag>{waitingReleaseCount}</Flag>
+          </BaseButton>
+        )}
+
         <BaseButton
           typeReport={status === StatusDelivery.PENDING}
           onClick={() => setStatus(StatusDelivery.PENDING)}
@@ -1104,7 +1182,10 @@ export function Dashboard() {
         </BaseButton>
 
         <BaseButton
-          typeReport={status !== StatusDelivery.PENDING}
+          typeReport={
+            status !== StatusDelivery.PENDING &&
+            status !== StatusDelivery.AWAITING_RELEASE
+          }
           onClick={() =>
             setStatus(
               `${StatusDelivery.ONCOURSE},${StatusDelivery.ARRIVED_AT_STORE},${StatusDelivery.COLLECTED},${StatusDelivery.ARRIVED_AT_DESTINATION},${StatusDelivery.AWAITING_CODE}`,
@@ -1130,7 +1211,6 @@ export function Dashboard() {
                 statusFilter={status}
                 permission={permission}
                 selectedMotoboy={getSelectedMotoboy(report)}
-                reportSelectedToModal={reportSelectedToModal}
                 motoboys={motoboys}
                 isUpdating={isDeliveryUpdating(report.id)}
                 onSelectMotoboy={handleSelectMotoboy}

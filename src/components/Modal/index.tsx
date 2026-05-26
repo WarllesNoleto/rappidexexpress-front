@@ -1,6 +1,5 @@
 import { Modal, Typography, Box } from '@mui/material';
 import { BaseButton, BaseInput } from './styles';
-import { useEffect, useState } from 'react';
 
 const style = {
   position: 'absolute',
@@ -18,34 +17,13 @@ const style = {
 export interface ModalProps {
     isVisible: boolean
     handleClose: () => void
-    onConfirmObservation: (text: string) => void
     observation: string
-    onObservationChange: (value: string) => void
-    isLoading?: boolean
+    isSaving?: boolean
+    onObservationChange: (text: string) => void
+    onConfirmObservation: () => void
 }
 
-export function BaseModal({
-    isVisible,
-    handleClose,
-    onConfirmObservation,
-    observation,
-    onObservationChange,
-    isLoading = false,
-}: ModalProps){
-    const [localObservation, setLocalObservation] = useState(observation)
-
-    useEffect(() => {
-        setLocalObservation(observation)
-    }, [observation, isVisible])
-
-    useEffect(() => {
-        onObservationChange(localObservation)
-    }, [localObservation, onObservationChange])
-
-    function handleNext() {
-        if (isLoading) return;
-        onConfirmObservation(localObservation);
-    }
+export function BaseModal({isVisible, handleClose, observation, isSaving = false, onObservationChange, onConfirmObservation}: ModalProps){
 
     return (
         <Modal 
@@ -62,11 +40,11 @@ export function BaseModal({
                     type="text"
                     id="user"
                     placeholder="Opcional"
-                    value={localObservation}
-                    onChange={(event) => { setLocalObservation(event.target.value) }}
+                    value={observation}
+                    onChange={(event) => { onObservationChange(event.target.value) }}
                 />
-                <BaseButton onClick={handleNext} disabled={isLoading}>
-                    {isLoading ? "Adicionando..." : "Adicionar"}
+                <BaseButton onClick={onConfirmObservation} disabled={isSaving}>
+                    {isSaving ? 'Salvando...' : 'Adicionar'}
                 </BaseButton>
             </Box>
         </Modal>

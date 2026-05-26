@@ -68,12 +68,14 @@ export function NewDelivery(){
         }
 
         try {
+            const normalizedMotoboyId = motoboyId.trim() || null
+
             await api.post('/delivery', {
                 ...data,
                 clientPhone: data.clientPhone.replace('(', '').replace(')', '').replace(' ', '').replace('-', ''),
                 status: "PENDENTE",
                 establishmentId,
-                motoboyId,
+                ...(normalizedMotoboyId ? { motoboyId: normalizedMotoboyId } : {}),
                 payment,
                 soda,
                 observation,
