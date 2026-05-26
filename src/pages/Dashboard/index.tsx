@@ -204,6 +204,20 @@ const DeliveryCard = memo(
       isIfoodOrder &&
       (report.status === StatusDelivery.ARRIVED_AT_DESTINATION ||
         report.status === StatusDelivery.AWAITING_CODE);
+    const isMotoboy = permission === UserType.MOTOBOY;
+
+    const canMotoboyAdvanceDelivery =
+      isMotoboy &&
+      [
+        StatusDelivery.ONCOURSE,
+        StatusDelivery.ARRIVED_AT_STORE,
+        StatusDelivery.COLLECTED,
+        StatusDelivery.ARRIVED_AT_DESTINATION,
+        StatusDelivery.AWAITING_CODE,
+      ].includes(report.status as StatusDelivery);
+
+    const canAdvanceDelivery = canManageReleaseOrder || canMotoboyAdvanceDelivery;
+    const canShowDeliveryCodeInput = canManageReleaseOrder || isMotoboy;
 
     return (
       <Delivery
@@ -344,7 +358,7 @@ const DeliveryCard = memo(
           </SelectContainer>
         )}
 
-        {shouldShowDeliveryCodeInput && canManageReleaseOrder && (
+        {shouldShowDeliveryCodeInput && canShowDeliveryCodeInput && (
           <SelectContainer>
             <label htmlFor={`delivery-code-${report.id}`}>
               Código de entrega iFood:
@@ -381,7 +395,7 @@ const DeliveryCard = memo(
               </>
             )}
 
-          {canManageReleaseOrder && (
+          {canAdvanceDelivery && (
             <OrderButton typebutton={true} onClick={() => onNextStep(report)}>
               {getButtonText(report.status, report)}
             </OrderButton>
