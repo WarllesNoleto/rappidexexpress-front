@@ -816,14 +816,17 @@ export function Dashboard() {
     let newStatus = "";
 
     if (report.status === StatusDelivery.AWAITING_RELEASE) {
-      const motoboyId =
-        selectedMotoboyByReport[report.id] ||
-        report.motoboyId ||
-        "";
+      const selectedMotoboy = getSelectedMotoboy(report)?.trim();
+
+      if (selectedMotoboy) {
+        await api.put(`/delivery/${report.id}`, {
+          motoboyId: selectedMotoboy,
+        });
+      }
 
       await api.put(
         `/delivery/${report.id}/release`,
-        motoboyId ? { motoboyId } : {},
+        selectedMotoboy ? { motoboyId: selectedMotoboy } : {},
       );
       return refreshDashboard(false);
     }
@@ -953,10 +956,14 @@ export function Dashboard() {
       const updatedReport = normalizeDeliveryResponse(response.data);
 
       if (updatedReport) {
-        const delta = getCountDelta(report, { ...report, ...updatedReport });
+        const normalizedReport =
+          report.status === StatusDelivery.AWAITING_RELEASE
+            ? { ...updatedReport, status: StatusDelivery.AWAITING_RELEASE }
+            : updatedReport;
+        const delta = getCountDelta(report, { ...report, ...normalizedReport });
         setPendingCount((state) => Math.max(0, state + delta.pending));
         setAssignedCount((state) => Math.max(0, state + delta.assigned));
-        updateReportInListLocally(updatedReport);
+        updateReportInListLocally(normalizedReport);
       } else {
         await refreshDashboard(false);
       }
