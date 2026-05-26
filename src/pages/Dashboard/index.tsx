@@ -86,6 +86,22 @@ type DeliveryCardProps = {
   canManageReleaseOrder: boolean;
 };
 
+
+const hasActiveIfoodMerchant = (source: any): boolean => {
+  const legacyMerchant = String(source?.ifoodMerchantId || "").trim();
+
+  const merchants = Array.isArray(source?.ifoodMerchants)
+    ? source.ifoodMerchants
+    : [];
+
+  const hasMerchantInList = merchants.some((merchant: any) => {
+    const merchantId = String(merchant?.merchantId || "").trim();
+    return Boolean(merchantId) && merchant?.enabled !== false;
+  });
+
+  return Boolean(legacyMerchant || hasMerchantInList);
+};
+
 const getIfoodClientAddress = (observation?: string): string | null => {
   if (!observation) {
     return null;
@@ -698,7 +714,7 @@ export function Dashboard() {
   }, []);
 
   const getMotoboys = useCallback(async () => {
-    if (permission === "shopkeeper") return;
+    if (!canManageReleaseOrder && permission !== UserType.MOTOBOY) return;
 
     try {
       const motoboysRes = await api.get("/user/motoboys");
@@ -706,7 +722,7 @@ export function Dashboard() {
     } catch (error) {
       console.error("Erro ao carregar motoboys:", error);
     }
-  }, [permission]);
+  }, [canManageReleaseOrder, permission]);
 
   const getMyself = useCallback(async () => {
     try {
@@ -716,43 +732,41 @@ export function Dashboard() {
       setCurrentUserId(currentUser.id ?? "");
       setCurrentCityId(currentUser.cityId ?? "");
 
-      const currentPermission = String(currentUser.permission || currentUser.type || permission || "").toLowerCase();
+      const currentType = String(currentUser.type || permission || "").toLowerCase();
+      const currentPermission = String(currentUser.permission || "").toLowerCase();
 
       const isAdminOrSuperadmin =
+        currentType === UserType.ADMIN ||
+        currentType === UserType.SUPERADMIN ||
         currentPermission === UserType.ADMIN ||
         currentPermission === UserType.SUPERADMIN;
-      const isShopkeeper =
-        currentPermission === UserType.SHOPKEEPER ||
-        currentPermission === UserType.SHOPKEEPERADMIN;
 
-      const ifoodMerchantId = String(currentUser.ifoodMerchantId || "").trim();
-      const aiqfomeStoreId = String(currentUser.aiqfomeStoreId || "").trim();
-      const establishmentIfoodMerchantId = String(
-        currentUser.establishment?.ifoodMerchantId ||
-          currentUser.selectedEstablishment?.ifoodMerchantId ||
-          currentUser.company?.ifoodMerchantId ||
-          "",
-      ).trim();
+      const isShopkeeper =
+        currentType === UserType.SHOPKEEPER ||
+        currentType === UserType.SHOPKEEPERADMIN;
 
       const hasIfoodIntegration =
-        (Boolean(currentUser.ifoodEnabled) ||
-          Boolean(currentUser.useIfoodIntegration) ||
-          Boolean(currentUser.establishment?.ifoodEnabled) ||
-          Boolean(currentUser.selectedEstablishment?.ifoodEnabled) ||
-          Boolean(currentUser.company?.ifoodEnabled)) &&
-        Boolean(ifoodMerchantId || establishmentIfoodMerchantId);
+        Boolean(
+          currentUser.useIfoodIntegration ||
+            currentUser.ifoodEnabled ||
+            currentUser.establishment?.useIfoodIntegration ||
+            currentUser.establishment?.ifoodEnabled ||
+            currentUser.selectedEstablishment?.useIfoodIntegration ||
+            currentUser.selectedEstablishment?.ifoodEnabled ||
+            currentUser.company?.useIfoodIntegration ||
+            currentUser.company?.ifoodEnabled,
+        ) &&
+        (hasActiveIfoodMerchant(currentUser) ||
+          hasActiveIfoodMerchant(currentUser.establishment) ||
+          hasActiveIfoodMerchant(currentUser.selectedEstablishment) ||
+          hasActiveIfoodMerchant(currentUser.company));
 
-      const hasAiqfomeIntegration =
-        Boolean(currentUser.aiqfomeEnabled) &&
-        Boolean(aiqfomeStoreId);
+      const nextCanViewReleaseTab =
+        isAdminOrSuperadmin || (isShopkeeper && hasIfoodIntegration);
+      const nextCanManageReleaseOrder =
+        isAdminOrSuperadmin || (isShopkeeper && hasIfoodIntegration);
 
-      const hasActiveIntegration = hasIfoodIntegration || hasAiqfomeIntegration;
-      const canManageByIfood = isShopkeeper && hasIfoodIntegration;
-      const nextCanManageReleaseOrder = isAdminOrSuperadmin || canManageByIfood;
-
-      setCanViewReleaseTab(
-        isAdminOrSuperadmin || (isShopkeeper && hasActiveIntegration),
-      );
+      setCanViewReleaseTab(nextCanViewReleaseTab);
       setCanManageReleaseOrder(nextCanManageReleaseOrder);
     } catch (error) {
       console.error("Erro ao carregar usuário atual:", error);
@@ -1128,7 +1142,7 @@ export function Dashboard() {
   }, [getMotoboys]);
 
   useEffect(() => {
-    if (permission === UserType.SHOPKEEPER) {
+    if (!canManageReleaseOrder && permission !== UserType.MOTOBOY) {
       return;
     }
 
@@ -1139,7 +1153,7 @@ export function Dashboard() {
     return () => {
       window.clearInterval(motoboysPollingInterval);
     };
-  }, [getMotoboys, permission]);
+  }, [canManageReleaseOrder, getMotoboys, permission]);
 
   useEffect(() => {
     void getMyself();
