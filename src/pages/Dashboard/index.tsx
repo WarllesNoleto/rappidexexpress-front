@@ -816,14 +816,6 @@ export function Dashboard() {
     let newStatus = "";
 
     if (report.status === StatusDelivery.AWAITING_RELEASE) {
-      const selectedMotoboy = getSelectedMotoboy(report)?.trim();
-
-      if (selectedMotoboy) {
-        await api.put(`/delivery/${report.id}`, {
-          motoboyId: selectedMotoboy,
-        });
-      }
-
       await api.put(
         `/delivery/${report.id}/release`,
         selectedMotoboy ? { motoboyId: selectedMotoboy } : {},
