@@ -35,6 +35,7 @@ export interface Report {
     ifoodOrderId?: string;
     ifoodDisplayId?: string;
     ifoodMerchantId?: string;
+    ifoodMerchantName?: string;
     soda: string;
     onCoursedAt: string;
     arrivedAtStoreAt?: string;

@@ -2,6 +2,12 @@ export interface User {
   id: string;
   isActive: boolean;
   ifoodMerchantId?: string;
+  ifoodMerchants?: Array<{
+    merchantId: string;
+    name: string;
+    enabled: boolean;
+    pickupAddress?: string;
+  }>;
   ifoodClientId?: string;
   location: string;
   name: string;

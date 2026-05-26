@@ -139,7 +139,17 @@ export function IfoodClients() {
     }
 
     const merchantId = (shopkeeper.ifoodMerchantId || '').trim();
-    if (shopkeeper.useIfoodIntegration && !merchantId) {
+    const merchants = Array.isArray(shopkeeper.ifoodMerchants)
+      ? shopkeeper.ifoodMerchants
+          .map((merchant) => ({
+            ...merchant,
+            merchantId: String(merchant.merchantId || '').trim(),
+            name: String(merchant.name || '').trim(),
+            pickupAddress: String(merchant.pickupAddress || '').trim(),
+          }))
+          .filter((merchant) => merchant.merchantId)
+      : [];
+    if (shopkeeper.useIfoodIntegration && !merchantId && merchants.length === 0) {
       alert('Informe o Merchant ID para ativar a integração iFood.');
       return;
     }
@@ -153,6 +163,7 @@ export function IfoodClients() {
           Boolean(shopkeeper.useIfoodIntegration) &&
           Boolean(shopkeeper.usesExternalIfoodPdv),
         ifoodMerchantId: merchantId,
+        ifoodMerchants: merchants,
       });
       if (shopkeeper.useIfoodIntegration && merchantId) {
         await api.post(`/ifood/sync-company/${shopkeeper.id}`).catch(() => undefined);
@@ -311,7 +322,7 @@ export function IfoodClients() {
 
                 <div>
                   <MerchantIdLabel htmlFor={`merchant-${shopkeeper.id}`}>
-                    Merchant ID
+                    Merchant ID (legado)
                   </MerchantIdLabel>
                   <Input
                     disabled={!shopkeeper.useIfoodIntegration}
@@ -321,11 +332,54 @@ export function IfoodClients() {
                         ifoodMerchantId: event.target.value,
                       })
                     }
-                    placeholder="Ex.: 12345678-90ab-cdef-1234-567890abcdef"
+                    placeholder="Compatibilidade com cadastro antigo"
                     value={shopkeeper.ifoodMerchantId || ''}
                   />
                 </div>
-                
+                <div>
+                  <MerchantIdLabel>Lojas iFood vinculadas</MerchantIdLabel>
+                  {(shopkeeper.ifoodMerchants || []).map((merchant, index) => (
+                    <div key={`${shopkeeper.id}-${index}`} style={{ border: '1px solid #555', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+                      <Input
+                        disabled={!shopkeeper.useIfoodIntegration}
+                        placeholder="Nome da loja"
+                        value={merchant.name || ''}
+                        onChange={(event) => updateLocalUser(shopkeeper.id, {
+                          ifoodMerchants: (shopkeeper.ifoodMerchants || []).map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item),
+                        })}
+                      />
+                      <Input
+                        disabled={!shopkeeper.useIfoodIntegration}
+                        placeholder="Merchant ID"
+                        value={merchant.merchantId || ''}
+                        onChange={(event) => updateLocalUser(shopkeeper.id, {
+                          ifoodMerchants: (shopkeeper.ifoodMerchants || []).map((item, itemIndex) => itemIndex === index ? { ...item, merchantId: event.target.value } : item),
+                        })}
+                      />
+                      <Input
+                        disabled={!shopkeeper.useIfoodIntegration}
+                        placeholder="Endereço de coleta (opcional)"
+                        value={merchant.pickupAddress || ''}
+                        onChange={(event) => updateLocalUser(shopkeeper.id, {
+                          ifoodMerchants: (shopkeeper.ifoodMerchants || []).map((item, itemIndex) => itemIndex === index ? { ...item, pickupAddress: event.target.value } : item),
+                        })}
+                      />
+                      <Checkbox>
+                        <input
+                          disabled={!shopkeeper.useIfoodIntegration}
+                          type="checkbox"
+                          checked={merchant.enabled !== false}
+                          onChange={(event) => updateLocalUser(shopkeeper.id, {
+                            ifoodMerchants: (shopkeeper.ifoodMerchants || []).map((item, itemIndex) => itemIndex === index ? { ...item, enabled: event.target.checked } : item),
+                          })}
+                        /> Ativa
+                      </Checkbox>
+                      <CreditButton type="button" onClick={() => updateLocalUser(shopkeeper.id, { ifoodMerchants: (shopkeeper.ifoodMerchants || []).filter((_, itemIndex) => itemIndex !== index) })}>Remover loja</CreditButton>
+                    </div>
+                  ))}
+                  <CreditButton type="button" disabled={!shopkeeper.useIfoodIntegration} onClick={() => updateLocalUser(shopkeeper.id, { ifoodMerchants: [...(shopkeeper.ifoodMerchants || []), { merchantId: '', name: '', enabled: true, pickupAddress: '' }] })}>Adicionar loja iFood</CreditButton>
+                </div>
+
                 <CreditSummary>
                   <CreditLine>Liberados: {shopkeeper.ifoodOrdersReleased || 0}</CreditLine>
                   <CreditLine>Utilizados: {shopkeeper.ifoodOrdersUsed || 0}</CreditLine>

@@ -33,6 +33,7 @@ const ProfileFormValidationSchema = zod.object({
   ifoodMerchantId: zod.string().optional(),
 });
 
+type IfoodMerchantForm = { merchantId: string; name: string; enabled: boolean; pickupAddress?: string };
 type ProfileFormData = zod.infer<typeof ProfileFormValidationSchema>;
 
 export function NewUser() {
@@ -55,6 +56,7 @@ export function NewUser() {
     usesExternalIfoodPdv: false,
     ifoodMerchantId: "",
   });
+  const [ifoodMerchants, setIfoodMerchants] = useState<IfoodMerchantForm[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [loadingDelete, setLoadingDelete] = useState(false);
@@ -94,8 +96,16 @@ export function NewUser() {
     const usesExternalIfoodPdv = useIfoodIntegration
       ? Boolean(data.usesExternalIfoodPdv)
       : false;
+    const normalizedMerchants = ifoodMerchants
+      .map((merchant) => ({
+        ...merchant,
+        merchantId: String(merchant.merchantId || "").trim(),
+        name: String(merchant.name || "").trim(),
+        pickupAddress: String(merchant.pickupAddress || "").trim(),
+      }))
+      .filter((merchant) => merchant.merchantId);
 
-    if (useIfoodIntegration && !ifoodMerchantId) {
+    if (useIfoodIntegration && !ifoodMerchantId && normalizedMerchants.length === 0) {
       alert("Para integração iFood, preencha o merchantId.");
       setLoading(false);
       return;
@@ -120,6 +130,7 @@ export function NewUser() {
         useIfoodIntegration,
         usesExternalIfoodPdv,
         ifoodMerchantId,
+        ifoodMerchants: normalizedMerchants,
       });
       if (useIfoodIntegration && ifoodMerchantId) {
         const createdCompanyId = response?.data?.id;
@@ -160,8 +171,16 @@ export function NewUser() {
     const cityIdToSubmit = allowCitySelection
       ? selectedCityId
       : loggedUserCityId;
+    const normalizedMerchants = ifoodMerchants
+      .map((merchant) => ({
+        ...merchant,
+        merchantId: String(merchant.merchantId || "").trim(),
+        name: String(merchant.name || "").trim(),
+        pickupAddress: String(merchant.pickupAddress || "").trim(),
+      }))
+      .filter((merchant) => merchant.merchantId);
 
-    if (useIfoodIntegration && !(ifoodMerchantId || "").trim()) {
+    if (useIfoodIntegration && !(ifoodMerchantId || "").trim() && normalizedMerchants.length === 0) {
       alert("Para integração iFood, preencha o merchantId.");
       setLoading(false);
       return;
@@ -185,6 +204,7 @@ export function NewUser() {
         useIfoodIntegration: Boolean(useIfoodIntegration),
         usesExternalIfoodPdv: Boolean(useIfoodIntegration) && Boolean(usesExternalIfoodPdv),
         ifoodMerchantId: (ifoodMerchantId || "").trim(),
+        ifoodMerchants: normalizedMerchants,
       });
       if (useIfoodIntegration && (ifoodMerchantId || "").trim()) {
         await api.post(`/ifood/sync-company/${userId}`).catch(() => undefined);
@@ -295,6 +315,7 @@ export function NewUser() {
     try {
       userFinded = await api.get(`/user/${user}`);
       setFormValues(userFinded.data);
+      setIfoodMerchants(Array.isArray(userFinded.data?.ifoodMerchants) ? userFinded.data.ifoodMerchants : []);
       setUserId(userFinded.data.id);
       setSelectedType(userFinded.data.type);
       const cityIdFromUser =
@@ -470,6 +491,7 @@ export function NewUser() {
                     if (!enabled) {
                       setValue("usesExternalIfoodPdv", false);
                       setValue("ifoodMerchantId", "");
+                      setIfoodMerchants([]);
                     }
                   }}
                 />{" "}
@@ -486,13 +508,48 @@ export function NewUser() {
                     />{" "}
                     Usa PDV externo integrado ao iFood?
                   </label>
-                  <label htmlFor="ifoodMerchantId">iFood Merchant ID:</label>
+                  <label htmlFor="ifoodMerchantId">iFood Merchant ID (legado):</label>
                   <BaseInput
                     type="text"
                     id="ifoodMerchantId"
-                    placeholder="Informe o merchantId da empresa."
+                    placeholder="Compatibilidade com cadastro antigo."
                     {...register("ifoodMerchantId")}
                   />
+                  <div>
+                    <strong>Lojas iFood vinculadas</strong>
+                    {ifoodMerchants.map((merchant, index) => (
+                      <div key={`${merchant.merchantId}-${index}`} style={{ border: "1px solid #555", padding: "0.75rem", marginTop: "0.5rem", borderRadius: 8 }}>
+                        <label>Nome da loja:</label>
+                        <BaseInput
+                          type="text"
+                          value={merchant.name || ""}
+                          onChange={(event) => setIfoodMerchants((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))}
+                        />
+                        <label>Merchant ID:</label>
+                        <BaseInput
+                          type="text"
+                          value={merchant.merchantId || ""}
+                          onChange={(event) => setIfoodMerchants((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, merchantId: event.target.value } : item))}
+                        />
+                        <label>Endereço de coleta (opcional):</label>
+                        <BaseInput
+                          type="text"
+                          value={merchant.pickupAddress || ""}
+                          onChange={(event) => setIfoodMerchants((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, pickupAddress: event.target.value } : item))}
+                        />
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={merchant.enabled !== false}
+                            onChange={(event) => setIfoodMerchants((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, enabled: event.target.checked } : item))}
+                          /> Ativa
+                        </label>
+                        <BaseButton type="button" onClick={() => setIfoodMerchants((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}>Remover loja</BaseButton>
+                      </div>
+                    ))}
+                    <BaseButton type="button" onClick={() => setIfoodMerchants((prev) => [...prev, { merchantId: "", name: "", enabled: true, pickupAddress: "" }])}>Adicionar loja iFood</BaseButton>
+                  </div>
+
                 </>
               )}
             </>

@@ -261,6 +261,7 @@ const DeliveryCard = memo(
         <ContainerInfo>
           <div>
             {isIfoodOrder && <p>Pedido iFood: {ifoodOrderNumber || "Não informado"}</p>}
+            {isIfoodOrder && <p>Loja iFood: {report.ifoodMerchantName || report.ifoodMerchantId || "Não informada"}</p>}
 
             <p>Cliente: {report.clientName}</p>
             {statusFilter !== StatusDelivery.PENDING && ifoodClientAddress && (

@@ -189,6 +189,9 @@ export function Reports() {
 
         const parts = [
             `Pedido iFood #${orderNumber}`,
+            report.ifoodMerchantName || report.ifoodMerchantId
+                ? `Loja iFood: ${report.ifoodMerchantName || report.ifoodMerchantId}`
+                : null,
             addressText ? `Endereço: ${addressText}` : null,
             report.addressMapsUrl ? `Localização: ${report.addressMapsUrl}` : null,
             !oldObservationWasOverwritten && originalObservation
