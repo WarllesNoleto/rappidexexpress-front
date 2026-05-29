@@ -1250,6 +1250,9 @@ export function Dashboard() {
   const isCancelingDelivery = Boolean(
     cancelDelivery && isDeliveryUpdating(cancelDelivery.id),
   );
+  const cancelDeliveryIdentifiers = cancelDelivery
+    ? getCancelDeliveryIdentifiers(cancelDelivery)
+    : [];
 
   return (
     <Container>
@@ -1285,11 +1288,10 @@ export function Dashboard() {
             id="cancel-delivery-description"
             style={{ margin: 0, lineHeight: 1.5 }}
           >
-            Tem certeza que deseja cancelar este pedido? Essa ação pode cancelar
-            o pedido e não deve ser feita sem confirmação.
+            Tem certeza que deseja cancelar este pedido?
           </p>
 
-          {cancelDelivery && (
+          {cancelDeliveryIdentifiers.length > 0 && (
             <div
               style={{
                 background: "rgba(255, 255, 255, 0.06)",
@@ -1300,7 +1302,7 @@ export function Dashboard() {
                 gap: "6px",
               }}
             >
-              {getCancelDeliveryIdentifiers(cancelDelivery).map((identifier) => (
+              {cancelDeliveryIdentifiers.map((identifier) => (
                 <span key={identifier}>{identifier}</span>
               ))}
             </div>
