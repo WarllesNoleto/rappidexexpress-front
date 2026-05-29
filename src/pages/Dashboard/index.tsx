@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { Modal } from "@mui/material";
 import { io } from "socket.io-client";
 import { MapPin, WhatsappLogo } from "phosphor-react";
 
@@ -462,6 +463,8 @@ export function Dashboard() {
   const [updatingDeliveryIds, setUpdatingDeliveryIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [cancelDelivery, setCancelDelivery] = useState<Report | null>(null);
+  const [isCancelConfirmVisible, setIsCancelConfirmVisible] = useState(false);
 
   const [selectedMotoboyByReport, setSelectedMotoboyByReport] = useState<
     Record<string, string>
@@ -977,30 +980,48 @@ export function Dashboard() {
     }
   }
 
-  async function handlerCancel(report: Report) {
+  function openCancelConfirmation(report: Report) {
     if (isDeliveryUpdating(report.id)) {
       return;
     }
 
-    const confirmMessage = window.confirm(
-      "Você realmente deseja apagar essa entrega?",
-    );
+    setCancelDelivery(report);
+    setIsCancelConfirmVisible(true);
+  }
 
-    if (!confirmMessage) {
+  function closeCancelConfirmation() {
+    if (cancelDelivery && isDeliveryUpdating(cancelDelivery.id)) {
       return;
     }
 
+    setIsCancelConfirmVisible(false);
+    setCancelDelivery(null);
+  }
+
+  async function confirmCancelDelivery() {
+    if (!cancelDelivery) return;
+
+    const report = cancelDelivery;
+
     try {
       startUpdatingDelivery(report.id);
+
       await api.put(`/delivery/${report.id}`, {
         status: "CANCELADO",
       });
 
-      const delta = getCountDelta(report, { ...report, status: StatusDelivery.CANCELED });
+      const delta = getCountDelta(report, {
+        ...report,
+        status: StatusDelivery.CANCELED,
+      });
+
       setPendingCount((state) => Math.max(0, state + delta.pending));
       setAssignedCount((state) => Math.max(0, state + delta.assigned));
       setReports((state) => state.filter((item) => item.id !== report.id));
+
       alert("O pedido foi cancelado com sucesso.");
+      setIsCancelConfirmVisible(false);
+      setCancelDelivery(null);
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao cancelar pedido.");
     } finally {
@@ -1111,6 +1132,21 @@ export function Dashboard() {
     );
   }
 
+  function getCancelDeliveryIdentifiers(report: Report) {
+    const ifoodOrderNumber =
+      getIfoodOrderNumber(report.observation) ||
+      report.ifoodDisplayId ||
+      report.ifoodOrderId;
+
+    return [
+      ifoodOrderNumber ? `Pedido iFood: ${ifoodOrderNumber}` : null,
+      report.clientName ? `Cliente: ${report.clientName}` : null,
+      report.establishmentName
+        ? `Estabelecimento: ${report.establishmentName}`
+        : null,
+    ].filter((identifier): identifier is string => Boolean(identifier));
+  }
+
   const handleSelectMotoboy = useCallback(
     (reportId: string, motoboyId: string) => {
       setSelectedMotoboyByReport((state) => ({
@@ -1211,8 +1247,113 @@ export function Dashboard() {
     };
   }, [currentCityId, refreshDashboard]);
 
+  const isCancelingDelivery = Boolean(
+    cancelDelivery && isDeliveryUpdating(cancelDelivery.id),
+  );
+
   return (
     <Container>
+
+      <Modal
+        open={isCancelConfirmVisible}
+        onClose={closeCancelConfirmation}
+        aria-labelledby="cancel-delivery-title"
+        aria-describedby="cancel-delivery-description"
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: "min(90vw, 420px)",
+            background: "#29292e",
+            color: "#f4f4f5",
+            borderRadius: "16px",
+            padding: "24px",
+            boxShadow: "0 24px 48px rgba(0, 0, 0, 0.35)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+          }}
+        >
+          <h2 id="cancel-delivery-title" style={{ margin: 0 }}>
+            Cancelar pedido
+          </h2>
+
+          <p
+            id="cancel-delivery-description"
+            style={{ margin: 0, lineHeight: 1.5 }}
+          >
+            Tem certeza que deseja cancelar este pedido? Essa ação pode cancelar
+            o pedido e não deve ser feita sem confirmação.
+          </p>
+
+          {cancelDelivery && (
+            <div
+              style={{
+                background: "rgba(255, 255, 255, 0.06)",
+                borderRadius: "12px",
+                padding: "12px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+              }}
+            >
+              {getCancelDeliveryIdentifiers(cancelDelivery).map((identifier) => (
+                <span key={identifier}>{identifier}</span>
+              ))}
+            </div>
+          )}
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              type="button"
+              disabled={isCancelingDelivery}
+              onClick={closeCancelConfirmation}
+              style={{
+                border: "1px solid #71717a",
+                borderRadius: "8px",
+                background: "transparent",
+                color: "#f4f4f5",
+                cursor: isCancelingDelivery ? "not-allowed" : "pointer",
+                fontWeight: 700,
+                padding: "12px 16px",
+                opacity: isCancelingDelivery ? 0.7 : 1,
+              }}
+            >
+              Voltar
+            </button>
+            <button
+              type="button"
+              disabled={isCancelingDelivery}
+              onClick={() => {
+                void confirmCancelDelivery();
+              }}
+              style={{
+                border: 0,
+                borderRadius: "8px",
+                background: "#b91c1c",
+                color: "#fff",
+                cursor: isCancelingDelivery ? "not-allowed" : "pointer",
+                fontWeight: 700,
+                padding: "12px 16px",
+                opacity: isCancelingDelivery ? 0.7 : 1,
+              }}
+            >
+              Sim, cancelar pedido
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       <BaseModal
         isVisible={Boolean(observationModalDeliveryId)}
         handleClose={closeObservationModal}
@@ -1284,7 +1425,7 @@ export function Dashboard() {
                 isUpdating={isDeliveryUpdating(report.id)}
                 onSelectMotoboy={handleSelectMotoboy}
                 onSave={handlerSave}
-                onCancel={handlerCancel}
+                onCancel={openCancelConfirmation}
                 onNextStep={handlerNextStep}
                 onDelete={handlerDelete}
                 onDeliveryCodeChange={handleDeliveryCodeChange}
