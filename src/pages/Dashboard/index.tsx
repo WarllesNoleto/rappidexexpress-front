@@ -463,7 +463,10 @@ export function Dashboard() {
   const [updatingDeliveryIds, setUpdatingDeliveryIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const [cancelDelivery, setCancelDelivery] = useState<Report | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    type: "cancel" | "delete";
+    report: Report;
+  } | null>(null);
   const [isCancelConfirmVisible, setIsCancelConfirmVisible] = useState(false);
 
   const [selectedMotoboyByReport, setSelectedMotoboyByReport] = useState<
@@ -985,23 +988,38 @@ export function Dashboard() {
       return;
     }
 
-    setCancelDelivery(report);
+    setConfirmAction({
+      type: "cancel",
+      report,
+    });
+    setIsCancelConfirmVisible(true);
+  }
+
+  function openDeleteConfirmation(report: Report) {
+    if (isDeliveryUpdating(report.id)) {
+      return;
+    }
+
+    setConfirmAction({
+      type: "delete",
+      report,
+    });
     setIsCancelConfirmVisible(true);
   }
 
   function closeCancelConfirmation() {
-    if (cancelDelivery && isDeliveryUpdating(cancelDelivery.id)) {
+    if (confirmAction && isDeliveryUpdating(confirmAction.report.id)) {
       return;
     }
 
     setIsCancelConfirmVisible(false);
-    setCancelDelivery(null);
+    setConfirmAction(null);
   }
 
   async function confirmCancelDelivery() {
-    if (!cancelDelivery) return;
+    if (!confirmAction) return;
 
-    const report = cancelDelivery;
+    const report = confirmAction.report;
 
     try {
       startUpdatingDelivery(report.id);
@@ -1021,7 +1039,7 @@ export function Dashboard() {
 
       alert("O pedido foi cancelado com sucesso.");
       setIsCancelConfirmVisible(false);
-      setCancelDelivery(null);
+      setConfirmAction(null);
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao cancelar pedido.");
     } finally {
@@ -1029,7 +1047,11 @@ export function Dashboard() {
     }
   }
 
-  async function handlerDelete(report: Report) {
+  async function confirmDeleteDelivery() {
+    if (!confirmAction) return;
+
+    const report = confirmAction.report;
+
     if (isDeliveryUpdating(report.id)) {
       return;
     }
@@ -1043,10 +1065,25 @@ export function Dashboard() {
       setAssignedCount((state) => Math.max(0, state + delta.assigned));
       setReports((state) => state.filter((item) => item.id !== report.id));
       alert("Solicitação apagada com sucesso.");
+      setIsCancelConfirmVisible(false);
+      setConfirmAction(null);
     } catch (error: any) {
       alert(error.response?.data?.message || "Erro ao apagar pedido.");
     } finally {
       stopUpdatingDelivery(report.id);
+    }
+  }
+
+  async function confirmDeliveryAction() {
+    if (!confirmAction) return;
+
+    if (confirmAction.type === "cancel") {
+      await confirmCancelDelivery();
+      return;
+    }
+
+    if (confirmAction.type === "delete") {
+      await confirmDeleteDelivery();
     }
   }
 
@@ -1247,12 +1284,23 @@ export function Dashboard() {
     };
   }, [currentCityId, refreshDashboard]);
 
+  const confirmationReport = confirmAction?.report || null;
   const isCancelingDelivery = Boolean(
-    cancelDelivery && isDeliveryUpdating(cancelDelivery.id),
+    confirmationReport && isDeliveryUpdating(confirmationReport.id),
   );
-  const cancelDeliveryIdentifiers = cancelDelivery
-    ? getCancelDeliveryIdentifiers(cancelDelivery)
+  const cancelDeliveryIdentifiers = confirmationReport
+    ? getCancelDeliveryIdentifiers(confirmationReport)
     : [];
+  const isDeleteConfirmation = confirmAction?.type === "delete";
+  const confirmationTitle = isDeleteConfirmation
+    ? "Apagar pedido"
+    : "Cancelar pedido";
+  const confirmationDescription = isDeleteConfirmation
+    ? "Tem certeza que deseja apagar este pedido?"
+    : "Tem certeza que deseja cancelar este pedido?";
+  const confirmationButtonText = isDeleteConfirmation
+    ? "Sim, apagar pedido"
+    : "Sim, cancelar pedido";
 
   return (
     <Container>
@@ -1281,14 +1329,14 @@ export function Dashboard() {
           }}
         >
           <h2 id="cancel-delivery-title" style={{ margin: 0 }}>
-            Cancelar pedido
+            {confirmationTitle}
           </h2>
 
           <p
             id="cancel-delivery-description"
             style={{ margin: 0, lineHeight: 1.5 }}
           >
-            Tem certeza que deseja cancelar este pedido?
+            {confirmationDescription}
           </p>
 
           {cancelDeliveryIdentifiers.length > 0 && (
@@ -1337,7 +1385,7 @@ export function Dashboard() {
               type="button"
               disabled={isCancelingDelivery}
               onClick={() => {
-                void confirmCancelDelivery();
+                void confirmDeliveryAction();
               }}
               style={{
                 border: 0,
@@ -1350,7 +1398,7 @@ export function Dashboard() {
                 opacity: isCancelingDelivery ? 0.7 : 1,
               }}
             >
-              Sim, cancelar pedido
+              {confirmationButtonText}
             </button>
           </div>
         </div>
@@ -1429,7 +1477,7 @@ export function Dashboard() {
                 onSave={handlerSave}
                 onCancel={openCancelConfirmation}
                 onNextStep={handlerNextStep}
-                onDelete={handlerDelete}
+                onDelete={openDeleteConfirmation}
                 onDeliveryCodeChange={handleDeliveryCodeChange}
                 getButtonText={getButtonText}
                 getHours={getHours}
