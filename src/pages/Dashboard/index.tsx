@@ -836,7 +836,8 @@ export function Dashboard() {
         `/delivery/${report.id}/release`,
         selectedMotoboy ? { motoboyId: selectedMotoboy } : {},
       );
-      return refreshDashboard(false);
+      await Promise.all([refreshDashboard(false), getMotoboys()]);
+      return;
     }
 
     if (report.status === StatusDelivery.PENDING) {
@@ -907,7 +908,7 @@ export function Dashboard() {
       const updatedReport = normalizeDeliveryResponse(response.data);
 
       if (!updatedReport) {
-        await refreshDashboard(false);
+        await Promise.all([refreshDashboard(false), getMotoboys()]);
         alert(`Solicitação avançada para o passo ${newStatus}`);
         return;
       }
@@ -918,7 +919,7 @@ export function Dashboard() {
         updatedReport.motoboyId &&
         updatedReport.motoboyId !== data.motoboyId
       ) {
-        await refreshDashboard(false);
+        await Promise.all([refreshDashboard(false), getMotoboys()]);
         alert("Essa entrega já foi atribuída a outro entregador.");
         return;
       }
@@ -930,6 +931,7 @@ export function Dashboard() {
       setPendingCount((state) => Math.max(0, state + delta.pending));
       setAssignedCount((state) => Math.max(0, state + delta.assigned));
       updateReportInListLocally(updatedReport);
+      void getMotoboys();
       alert(`Solicitação avançada para o passo ${newStatus}`);
       setDeliveryCodeByReport((state) => {
         const nextState = { ...state };
@@ -972,8 +974,9 @@ export function Dashboard() {
         setPendingCount((state) => Math.max(0, state + delta.pending));
         setAssignedCount((state) => Math.max(0, state + delta.assigned));
         updateReportInListLocally(normalizedReport);
+        void getMotoboys();
       } else {
-        await refreshDashboard(false);
+        await Promise.all([refreshDashboard(false), getMotoboys()]);
       }
       alert("Motoboy foi atualizado com sucesso.");
     } catch (error: any) {
@@ -1036,6 +1039,7 @@ export function Dashboard() {
       setPendingCount((state) => Math.max(0, state + delta.pending));
       setAssignedCount((state) => Math.max(0, state + delta.assigned));
       setReports((state) => state.filter((item) => item.id !== report.id));
+      void getMotoboys();
 
       alert("O pedido foi cancelado com sucesso.");
       setIsCancelConfirmVisible(false);
@@ -1064,6 +1068,7 @@ export function Dashboard() {
       setPendingCount((state) => Math.max(0, state + delta.pending));
       setAssignedCount((state) => Math.max(0, state + delta.assigned));
       setReports((state) => state.filter((item) => item.id !== report.id));
+      void getMotoboys();
       alert("Solicitação apagada com sucesso.");
       setIsCancelConfirmVisible(false);
       setConfirmAction(null);
@@ -1260,7 +1265,7 @@ export function Dashboard() {
       }
 
       reloadTimeoutRef.current = window.setTimeout(() => {
-        void refreshDashboard(false);
+        void Promise.all([refreshDashboard(false), getMotoboys()]);
       }, 250);
     };
 
@@ -1282,7 +1287,7 @@ export function Dashboard() {
       socket.off("delivery:deleted", reloadDeliveries);
       socket.disconnect();
     };
-  }, [currentCityId, refreshDashboard]);
+  }, [currentCityId, getMotoboys, refreshDashboard]);
 
   const confirmationReport = confirmAction?.report || null;
   const isCancelingDelivery = Boolean(
