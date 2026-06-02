@@ -158,6 +158,7 @@ export function IfoodClients() {
             merchantId: String(merchant.merchantId || '').trim(),
             name: String(merchant.name || '').trim(),
             pickupAddress: String(merchant.pickupAddress || '').trim(),
+            location: String(merchant.location || '').trim(),
           }))
           .filter((merchant) => merchant.merchantId)
       : [];
@@ -377,6 +378,14 @@ export function IfoodClients() {
                           ifoodMerchants: (shopkeeper.ifoodMerchants || []).map((item, itemIndex) => itemIndex === index ? { ...item, pickupAddress: event.target.value } : item),
                         })}
                       />
+                      <Input
+                        disabled={!shopkeeper.useIfoodIntegration}
+                        placeholder="Link do google maps da loja (opcional)"
+                        value={merchant.location || ''}
+                        onChange={(event) => updateLocalUser(shopkeeper.id, {
+                          ifoodMerchants: (shopkeeper.ifoodMerchants || []).map((item, itemIndex) => itemIndex === index ? { ...item, location: event.target.value } : item),
+                        })}
+                      />
                       <Checkbox>
                         <input
                           disabled={!shopkeeper.useIfoodIntegration}
@@ -393,7 +402,7 @@ export function IfoodClients() {
                   <CreditButton type="button" disabled={!shopkeeper.useIfoodIntegration} onClick={() => {
                     const updatedMerchants = [
                       ...(shopkeeper.ifoodMerchants || []),
-                      { merchantId: '', name: '', enabled: true, pickupAddress: '' },
+                      { merchantId: '', name: '', enabled: true, pickupAddress: '', location: '' },
                     ];
                     updateLocalUser(shopkeeper.id, {
                       ifoodMerchants: updatedMerchants,

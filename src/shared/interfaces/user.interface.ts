@@ -7,6 +7,7 @@ export interface User {
     name: string;
     enabled: boolean;
     pickupAddress?: string;
+    location?: string;
   }>;
   ifoodClientId?: string;
   location: string;

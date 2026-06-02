@@ -218,6 +218,14 @@ const DeliveryCard = memo(
     );
     const ifoodClientAddress = report.clientAddress || getIfoodClientAddress(report.observation);
     const googleMapsAddressLink = getGoogleMapsLinkFromAddress(ifoodClientAddress);
+    const cardEstablishmentName =
+      isIfoodOrder && report.ifoodMerchantName
+        ? report.ifoodMerchantName
+        : report.establishmentName;
+    const cardEstablishmentLocation =
+      isIfoodOrder && report.ifoodMerchantLocation
+        ? report.ifoodMerchantLocation
+        : report.establishmentLocation;
     const motoboySelectId = `motoboy-${report.id}`;
     const shouldShowDeliveryCodeInput =
       isIfoodOrder &&
@@ -250,7 +258,7 @@ const DeliveryCard = memo(
           </ContainerImagem>
 
           <ShopkeeperInfo>
-            <p>{report.establishmentName}</p>
+            <p>{cardEstablishmentName}</p>
 
             <Link
               href={getLinkToWhatsapp(
@@ -265,7 +273,7 @@ const DeliveryCard = memo(
             </Link>
 
             <Link
-              href={report.establishmentLocation}
+              href={cardEstablishmentLocation}
               target="_blank"
               rel="noopener noreferrer"
             >

@@ -33,7 +33,7 @@ const ProfileFormValidationSchema = zod.object({
   ifoodMerchantId: zod.string().optional(),
 });
 
-type IfoodMerchantForm = { merchantId: string; name: string; enabled: boolean; pickupAddress?: string };
+type IfoodMerchantForm = { merchantId: string; name: string; enabled: boolean; pickupAddress?: string; location?: string };
 type ProfileFormData = zod.infer<typeof ProfileFormValidationSchema>;
 
 export function NewUser() {
@@ -114,6 +114,7 @@ export function NewUser() {
         merchantId: String(merchant.merchantId || "").trim(),
         name: String(merchant.name || "").trim(),
         pickupAddress: String(merchant.pickupAddress || "").trim(),
+        location: String(merchant.location || "").trim(),
       }))
       .filter((merchant) => merchant.merchantId);
     const ifoodMerchantId = resolveLegacyMerchantId(data.ifoodMerchantId || "", normalizedMerchants);
@@ -190,6 +191,7 @@ export function NewUser() {
         merchantId: String(merchant.merchantId || "").trim(),
         name: String(merchant.name || "").trim(),
         pickupAddress: String(merchant.pickupAddress || "").trim(),
+        location: String(merchant.location || "").trim(),
       }))
       .filter((merchant) => merchant.merchantId);
 
@@ -550,6 +552,12 @@ export function NewUser() {
                           value={merchant.pickupAddress || ""}
                           onChange={(event) => setIfoodMerchants((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, pickupAddress: event.target.value } : item))}
                         />
+                        <label>Link do google maps da loja (opcional):</label>
+                        <BaseInput
+                          type="text"
+                          value={merchant.location || ""}
+                          onChange={(event) => setIfoodMerchants((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, location: event.target.value } : item))}
+                        />
                         <label>
                           <input
                             type="checkbox"
@@ -561,7 +569,7 @@ export function NewUser() {
                       </div>
                     ))}
                     <BaseButton type="button" onClick={() => {
-                      const updatedMerchants = [...ifoodMerchants, { merchantId: "", name: "", enabled: true, pickupAddress: "" }];
+                      const updatedMerchants = [...ifoodMerchants, { merchantId: "", name: "", enabled: true, pickupAddress: "", location: "" }];
                       setIfoodMerchants(updatedMerchants);
                       setValue("ifoodMerchantId", resolveLegacyMerchantId(watch("ifoodMerchantId") || "", updatedMerchants));
                     }}>Adicionar loja iFood</BaseButton>
