@@ -89,15 +89,55 @@ type DeliveryCardProps = {
 };
 
 
+const IFOOD_INTEGRATION_FIELDS = [
+  "useIfoodIntegration",
+  "ifoodEnabled",
+  "ifoodIntegration",
+  "hasIfood",
+  "integrationIfood",
+];
+
+const isTruthyIntegrationValue = (value: any): boolean => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "number") {
+    return value === 1;
+  }
+
+  if (typeof value === "string") {
+    return ["true", "1", "sim", "yes", "ativo", "active", "enabled"].includes(
+      value.trim().toLowerCase(),
+    );
+  }
+
+  return false;
+};
+
+const hasIfoodIntegrationFlag = (source: any): boolean => {
+  if (!source) {
+    return false;
+  }
+
+  return IFOOD_INTEGRATION_FIELDS.some((field) =>
+    isTruthyIntegrationValue(source?.[field]),
+  );
+};
+
 const hasActiveIfoodMerchant = (source: any): boolean => {
-  const legacyMerchant = String(source?.ifoodMerchantId || "").trim();
+  const legacyMerchant = String(
+    source?.ifoodMerchantId || source?.merchantId || "",
+  ).trim();
 
   const merchants = Array.isArray(source?.ifoodMerchants)
     ? source.ifoodMerchants
     : [];
 
   const hasMerchantInList = merchants.some((merchant: any) => {
-    const merchantId = String(merchant?.merchantId || "").trim();
+    const merchantId = String(
+      merchant?.merchantId || merchant?.ifoodMerchantId || "",
+    ).trim();
     return Boolean(merchantId) && merchant?.enabled !== false;
   });
 
@@ -693,6 +733,15 @@ export function Dashboard() {
         setPendingCount(nextPendingCount);
         setAssignedCount(nextAssignedCount);
         setWaitingReleaseCount(nextWaitingReleaseCount);
+
+        if (
+          nextWaitingReleaseCount > 0 &&
+          (permission === UserType.SHOPKEEPER ||
+            permission === UserType.SHOPKEEPERADMIN)
+        ) {
+          setCanViewReleaseTab(true);
+          setCanManageReleaseOrder(true);
+        }
       } catch (error: any) {
         if (requestId !== refreshRequestIdRef.current) {
           return;
@@ -705,7 +754,7 @@ export function Dashboard() {
         }
       }
     },
-    [status],
+    [permission, status],
   );
 
   const getCities = useCallback(async () => {
@@ -762,32 +811,32 @@ export function Dashboard() {
         currentType === UserType.SHOPKEEPERADMIN;
 
       const hasIfoodIntegration =
-        Boolean(
-          currentUser.useIfoodIntegration ||
-            currentUser.ifoodEnabled ||
-            currentUser.establishment?.useIfoodIntegration ||
-            currentUser.establishment?.ifoodEnabled ||
-            currentUser.selectedEstablishment?.useIfoodIntegration ||
-            currentUser.selectedEstablishment?.ifoodEnabled ||
-            currentUser.company?.useIfoodIntegration ||
-            currentUser.company?.ifoodEnabled,
-        ) &&
-        (hasActiveIfoodMerchant(currentUser) ||
-          hasActiveIfoodMerchant(currentUser.establishment) ||
-          hasActiveIfoodMerchant(currentUser.selectedEstablishment) ||
-          hasActiveIfoodMerchant(currentUser.company));
+        hasIfoodIntegrationFlag(currentUser) ||
+        hasIfoodIntegrationFlag(currentUser.establishment) ||
+        hasIfoodIntegrationFlag(currentUser.selectedEstablishment) ||
+        hasIfoodIntegrationFlag(currentUser.company) ||
+        hasActiveIfoodMerchant(currentUser) ||
+        hasActiveIfoodMerchant(currentUser.establishment) ||
+        hasActiveIfoodMerchant(currentUser.selectedEstablishment) ||
+        hasActiveIfoodMerchant(currentUser.company);
 
+      const canReleaseDueToWaitingOrders =
+        isShopkeeper && waitingReleaseCount > 0;
       const nextCanViewReleaseTab =
-        isAdminOrSuperadmin || (isShopkeeper && hasIfoodIntegration);
+        isAdminOrSuperadmin ||
+        (isShopkeeper && hasIfoodIntegration) ||
+        canReleaseDueToWaitingOrders;
       const nextCanManageReleaseOrder =
-        isAdminOrSuperadmin || (isShopkeeper && hasIfoodIntegration);
+        isAdminOrSuperadmin ||
+        (isShopkeeper && hasIfoodIntegration) ||
+        canReleaseDueToWaitingOrders;
 
       setCanViewReleaseTab(nextCanViewReleaseTab);
       setCanManageReleaseOrder(nextCanManageReleaseOrder);
     } catch (error) {
       console.error("Erro ao carregar usuário atual:", error);
     }
-  }, [permission]);
+  }, [permission, waitingReleaseCount]);
 
 
 
